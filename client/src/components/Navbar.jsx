@@ -11,6 +11,7 @@ export default function Navbar() {
   const [savedJobsOpen, setSavedJobsOpen] = useState(false);
   const [signInOpen, setSignInOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -26,12 +27,24 @@ export default function Navbar() {
       <Link to="/" className="navbar-logo">
         <img src="/images/logo.png" alt="Open Window Staffing" className="navbar-logo-img" />
       </Link>
+      <button
+        type="button"
+        className="navbar-hamburger"
+        aria-label="Toggle menu"
+        aria-expanded={mobileMenuOpen}
+        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+      >
+        <span className="navbar-hamburger-line" />
+        <span className="navbar-hamburger-line" />
+        <span className="navbar-hamburger-line" />
+      </button>
+      <div className={`navbar-menu ${mobileMenuOpen ? "navbar-menu--open" : ""}`}>
       <div className="navbar-links">
-        <NavLink to="/" className="navbar-link" end>
+        <NavLink to="/" className="navbar-link" end onClick={() => setMobileMenuOpen(false)}>
           Home
         </NavLink>
         <div className="navbar-dropdown-wrap">
-          <Link to="/jobs" className="navbar-link navbar-link--dropdown">
+          <Link to="/jobs" className="navbar-link navbar-link--dropdown" onClick={() => setMobileMenuOpen(false)}>
             Healthcare Professionals
             <span className="navbar-chevron" aria-hidden="true">▼</span>
           </Link>
@@ -60,7 +73,7 @@ export default function Navbar() {
           </div>
         </div>
         <div className="navbar-dropdown-wrap">
-          <Link to="/about" className="navbar-link navbar-link--dropdown">
+          <Link to="/about" className="navbar-link navbar-link--dropdown" onClick={() => setMobileMenuOpen(false)}>
             About Us
             <span className="navbar-chevron" aria-hidden="true">▼</span>
           </Link>
@@ -79,7 +92,7 @@ export default function Navbar() {
           </div>
         </div>
         <div className="navbar-dropdown-wrap">
-          <Link to="/faq" className="navbar-link navbar-link--dropdown">
+          <Link to="/faq" className="navbar-link navbar-link--dropdown" onClick={() => setMobileMenuOpen(false)}>
             FAQ
             <span className="navbar-chevron" aria-hidden="true">▼</span>
           </Link>
@@ -89,7 +102,7 @@ export default function Navbar() {
             <Link to="/faq" className="navbar-dropdown-link">For Employers</Link>
           </div>
         </div>
-        <Link to="/contact" className="navbar-link">
+        <Link to="/contact" className="navbar-link" onClick={() => setMobileMenuOpen(false)}>
           Contact Us
         </Link>
       </div>
@@ -164,12 +177,13 @@ export default function Navbar() {
         </div>
         <SavedJobsPanel isOpen={savedJobsOpen} onClose={() => setSavedJobsOpen(false)} />
         <SignInModal isOpen={signInOpen} onClose={() => setSignInOpen(false)} />
-        <Link to="/post-job" className="navbar-cta">
+        <Link to="/post-job" className="navbar-cta" onClick={() => setMobileMenuOpen(false)}>
           POST A JOB
           <span className="navbar-cta-plus" aria-hidden="true">
             <span className="navbar-cta-plus-inner">+</span>
           </span>
         </Link>
+      </div>
       </div>
     </nav>
   );
