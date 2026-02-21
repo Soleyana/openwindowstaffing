@@ -1,0 +1,53 @@
+# ========== USING THE JWT TOKEN ==========
+# STEP 1: Run the LOGIN request below
+# STEP 2: Copy the token from the response (the long string starting with eyJ...)
+# STEP 3: Paste it on the line below (NO quotes, NO spaces)
+
+@token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5OTY5Yjc2MWU3ZmJmYzFmMTZhMDU0YyIsImlhdCI6MTc3MTQ4MTY1MywiZXhwIjoxNzcyMDg2NDUzfQ.5IYYJrDi-foE4GsJzmmyEunOnekhFicxivKjT6CrN-s
+
+
+
+# Make sure your server is running first:
+# In terminal inside /server folder run:
+# node index.js
+
+
+### Test API (server check)
+GET http://localhost:5000/
+
+
+### Register (ONLY RUN ONCE — already done)
+POST http://localhost:5000/api/auth/register
+Content-Type: application/json
+
+{
+  "name": "Admin Recruiter",
+  "email": "admin@openwindowstaffing.com",
+  "password": "123456",
+  "role": "recruiter"
+}
+
+
+### Login (IMPORTANT — RUN THIS FIRST EVERY TIME)
+POST http://localhost:5000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@openwindowstaffing.com",
+  "password": "123456"
+}
+
+
+### Create Job (Recruiter Only)
+POST http://localhost:5000/api/jobs
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "title": "Travel Registered Nurse",
+  "description": "We are seeking a travel RN for a 13-week hospital contract assignment.",
+  "location": "Baltimore, MD",
+  "jobType": "travel",
+  "specialty": "RN",
+  "payRate": "$2,400/week"
+}

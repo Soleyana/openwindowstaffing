@@ -1,0 +1,6 @@
+{
+  "files.associations": {
+    "*.http": "http",
+    "*.rest": "http"
+  }
+}
