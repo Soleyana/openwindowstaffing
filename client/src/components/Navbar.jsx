@@ -24,7 +24,7 @@ export default function Navbar() {
   return (
     <nav className={`navbar ${scrolled ? "navbar-scrolled" : ""}`}>
       <Link to="/" className="navbar-logo">
-        <img src="/logo.png" alt="Open Window Staffing" className="navbar-logo-img" />
+        <img src="/images/logo.png" alt="Open Window Staffing" className="navbar-logo-img" />
       </Link>
       <div className="navbar-links">
         <NavLink to="/" className="navbar-link" end>

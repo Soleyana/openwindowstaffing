@@ -8,7 +8,7 @@ export default function Footer() {
       <div className="footer-top">
         <div className="footer-brand">
           <Link to="/" className="footer-logo-link">
-            <img src="/logo.png" alt="Open Window Staffing" className="footer-logo-img" />
+            <img src="/images/logo.png" alt="Open Window Staffing" className="footer-logo-img" />
           </Link>
           <p className="footer-desc">
             Connecting healthcare professionals with opportunities nationwide.

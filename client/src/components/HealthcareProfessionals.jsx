@@ -21,13 +21,13 @@ export default function HealthcareProfessionals() {
         </div>
         <div className="healthcare-pro-images">
           <div className="healthcare-pro-img-wrap">
-            <img src="/healthcare-img-1.jpg" alt="Healthcare professionals collaborating" />
+            <img src="/images/healthcare-img-1.jpg" alt="Healthcare professionals collaborating" />
           </div>
           <div className="healthcare-pro-img-wrap">
-            <img src="/healthcare-img-2.jpg" alt="Professional workspace" />
+            <img src="/images/healthcare-img-2.jpg" alt="Professional workspace" />
           </div>
           <div className="healthcare-pro-img-wrap">
-            <img src="/healthcare-img-3.jpg" alt="Team collaboration" />
+            <img src="/images/healthcare-img-3.jpg" alt="Team collaboration" />
           </div>
         </div>
       </div>

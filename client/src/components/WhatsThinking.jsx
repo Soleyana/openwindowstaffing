@@ -13,7 +13,7 @@ export default function WhatsThinking() {
         </div>
         <div className="whats-thinking-right">
           <div className="whats-thinking-img-wrap">
-            <img src="/pexels-rdne-6129243.jpg" alt="Healthcare team" onError={(e) => { e.target.style.display = "none"; }} />
+            <img src="/images/pexels-rdne-6129243.jpg" alt="Healthcare team" onError={(e) => { e.target.style.display = "none"; }} />
           </div>
         </div>
       </div>

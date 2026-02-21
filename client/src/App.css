@@ -448,7 +448,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background-image: url("/healthcare-hero.jpg");
+  background-image: url("/images/healthcare-hero.jpg");
   background-size: cover;
   background-position: center;
   position: relative;
@@ -749,7 +749,7 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  background-image: url("/IMG_0132.jpeg");
+  background-image: url("/images/IMG_0132.jpeg");
   background-size: cover;
   background-position: center;
   position: relative;
@@ -1140,7 +1140,7 @@
 }
 
 .audience-card--candidates {
-  background-image: url("/healthcare%20professionals.jpg");
+  background-image: url("/images/healthcare-professionals.jpg");
   background-color: #023e8a;
 }
 
@@ -1488,7 +1488,7 @@
 .testimonial-bg {
   position: absolute;
   inset: 0;
-  background-image: url("/pexels-rdne-6129243.jpg");
+  background-image: url("/images/pexels-rdne-6129243.jpg");
   background-size: cover;
   background-position: center;
 }
