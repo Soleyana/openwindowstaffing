@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import JobCard from "../components/JobCard";
+import { API_BASE_URL } from "../config";
 
-const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/jobs`;
+const API_URL = `${API_BASE_URL}/api/jobs`;
 
 export default function Jobs() {
   const [searchParams] = useSearchParams();
