@@ -5,8 +5,8 @@
 const isDev = import.meta.env.DEV;
 const apiUrl = import.meta.env.VITE_API_URL;
 
-/** Base URL for static assets (e.g. uploads). Use "" in dev so /uploads goes through proxy. */
-export const API_BASE_URL = isDev ? "" : (apiUrl || "");
+/** Base URL for static assets (e.g. uploads). In dev: "" (proxy). In prod: origin from VITE_API_URL. */
+export const API_BASE_URL = isDev ? "" : (apiUrl ? apiUrl.replace(/\/api\/?$/, "") : "");
 
 /** Company branding – configurable via env for white-label deployment */
 export const BRAND = {
