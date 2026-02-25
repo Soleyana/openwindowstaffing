@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { isStaff } from "../constants/roles";
 import { loginUser } from "../api/auth";
+import { getJobs } from "../api/jobs";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -11,6 +13,13 @@ export default function Login() {
   const [keepSignedIn, setKeepSignedIn] = useState(true);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [serverReachable, setServerReachable] = useState(null);
+
+  useEffect(() => {
+    getJobs()
+      .then(() => setServerReachable(true))
+      .catch(() => setServerReachable(false));
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -18,8 +27,8 @@ export default function Login() {
     setLoading(true);
     try {
       const data = await loginUser(email, password);
-      login(data.user, data.token);
-      navigate("/dashboard");
+      login(data.user);
+      navigate(isStaff(data.user?.role) ? "/recruiter/dashboard" : "/dashboard");
     } catch (err) {
       setError(err.message || "Something went wrong");
     } finally {
@@ -36,6 +45,11 @@ export default function Login() {
           <span> / Sign In</span>
         </nav>
         <form onSubmit={handleSubmit} className="auth-form">
+          {serverReachable === false && (
+            <p className="auth-error" role="alert">
+              Cannot reach server. Start the backend with <code>npm run dev</code> in the server folder, then run <code>npm run dev</code> in the client folder.
+            </p>
+          )}
           {error && <p className="auth-error">{error}</p>}
           <div className="auth-field-wrap">
             <label htmlFor="login-email">Email</label>

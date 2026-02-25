@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import JobCard from "../components/JobCard";
-import { API_BASE_URL } from "../config";
-
-const API_URL = `${API_BASE_URL}/api/jobs`;
+import { getJobs } from "../api/jobs";
 
 export default function Jobs() {
   const [searchParams] = useSearchParams();
@@ -28,24 +26,18 @@ export default function Jobs() {
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch(API_URL);
-        const json = await res.json();
+        const json = await getJobs();
 
         if (cancelled) return;
 
-        if (!res.ok) {
-          setError(json.message || "Failed to load jobs");
-          return;
-        }
-
-        if (json.success && json.data) {
+        if (json?.success && json.data) {
           setJobs(json.data);
         } else {
           setJobs([]);
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err.message || "Failed to load jobs");
+          setError(err?.response?.data?.message || err.message || "Failed to load jobs");
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -121,9 +113,20 @@ export default function Jobs() {
               aria-label="Healthcare category"
             >
               <option value="">All healthcare jobs</option>
+              <option value="RN">Registered Nurses</option>
+              <option value="CNA">CNAs</option>
+              <option value="LPN">LPNs</option>
               <option value="nursing">Nursing</option>
               <option value="allied-health">Allied Health</option>
               <option value="therapy">Therapy</option>
+              <option value="travel-nursing">Travel Nursing</option>
+              <option value="administrative">Administrative</option>
+              <option value="physician-provider">Physician & Provider</option>
+              <option value="behavioral-health">Behavioral Health</option>
+              <option value="pharmacy">Pharmacy</option>
+              <option value="diagnostic-imaging">Diagnostic & Imaging</option>
+              <option value="home-health">Home Health</option>
+              <option value="leadership">Leadership & Management</option>
               <option value="administrative">Administrative</option>
               <option value="other-healthcare">Other Healthcare</option>
             </select>

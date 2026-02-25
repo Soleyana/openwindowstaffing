@@ -2,16 +2,20 @@ require("dotenv").config();
 const mongoose = require("mongoose");
 const Job = require("./models/Job");
 const User = require("./models/User");
-
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/openwindow";
+const { STAFF_ROLES } = require("./constants/roles");
+const { MONGODB_URI, DEFAULT_COMPANY } = require("./config/env");
+if (!MONGODB_URI) {
+  console.error("MONGODB_URI is required. Set it in .env");
+  process.exit(1);
+}
 
 const healthcareJobs = [
-  { title: "Travel Registered Nurse", location: "Baltimore, MD", jobType: "travel", payRate: "$2,400/week", category: "nursing", description: "Seeking experienced RN for 13-week travel assignment. Competitive pay, housing stipend, and benefits.", company: "Open Window Staffing" },
-  { title: "Physical Therapist", location: "Houston, TX", jobType: "full-time", payRate: "$45–55/hr", category: "therapy", description: "Full-time PT position in acute care. New grads welcome. Sign-on bonus available.", company: "Open Window Staffing" },
-  { title: "Medical Technologist", location: "Phoenix, AZ", jobType: "contract", payRate: "$35–42/hr", category: "allied-health", description: "Contract MT position. Lab experience required. ASCP preferred.", company: "Open Window Staffing" },
-  { title: "Licensed Practical Nurse", location: "Chicago, IL", jobType: "part-time", payRate: "$28–32/hr", category: "nursing", description: "Part-time LPN for skilled nursing facility. Flexible schedule.", company: "Open Window Staffing" },
-  { title: "Occupational Therapist", location: "Denver, CO", jobType: "full-time", payRate: "$42–50/hr", category: "therapy", description: "OT for outpatient rehab. Pediatrics or adult population.", company: "Open Window Staffing" },
-  { title: "Radiologic Technologist", location: "Miami, FL", jobType: "full-time", payRate: "$32–38/hr", category: "allied-health", description: "RT for hospital imaging department. ARRT required.", company: "Open Window Staffing" },
+  { title: "Travel Registered Nurse", location: "Baltimore, MD", jobType: "travel", payRate: "$2,400/week", category: "nursing", description: "Seeking experienced RN for 13-week travel assignment. Competitive pay, housing stipend, and benefits.", company: DEFAULT_COMPANY },
+  { title: "Physical Therapist", location: "Houston, TX", jobType: "full-time", payRate: "$45–55/hr", category: "therapy", description: "Full-time PT position in acute care. New grads welcome. Sign-on bonus available.", company: DEFAULT_COMPANY },
+  { title: "Medical Technologist", location: "Phoenix, AZ", jobType: "contract", payRate: "$35–42/hr", category: "allied-health", description: "Contract MT position. Lab experience required. ASCP preferred.", company: DEFAULT_COMPANY },
+  { title: "Licensed Practical Nurse", location: "Chicago, IL", jobType: "part-time", payRate: "$28–32/hr", category: "nursing", description: "Part-time LPN for skilled nursing facility. Flexible schedule.", company: DEFAULT_COMPANY },
+  { title: "Occupational Therapist", location: "Denver, CO", jobType: "full-time", payRate: "$42–50/hr", category: "therapy", description: "OT for outpatient rehab. Pediatrics or adult population.", company: DEFAULT_COMPANY },
+  { title: "Radiologic Technologist", location: "Miami, FL", jobType: "full-time", payRate: "$32–38/hr", category: "allied-health", description: "RT for hospital imaging department. ARRT required.", company: DEFAULT_COMPANY },
 ];
 
 async function seed() {
@@ -34,7 +38,7 @@ async function seed() {
     for (const j of healthcareJobs) {
       const exists = await Job.findOne({ title: j.title, location: j.location });
       if (!exists) {
-        await Job.create({ ...j, createdBy: recruiter._id });
+        await Job.create({ ...j, createdBy: staff._id });
         console.log("Added:", j.title);
       }
     }

@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 export default function SavedJobsPanel({ isOpen, onClose }) {
   if (!isOpen) return null;
 
-  // TODO: wire to saved jobs state/API when backend supports it
   const savedJobs = [];
 
   return (

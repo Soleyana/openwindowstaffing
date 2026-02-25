@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { BRAND } from "../config";
 
 export default function Footer() {
   const { isLoggedIn } = useAuth();
@@ -8,7 +9,7 @@ export default function Footer() {
       <div className="footer-top">
         <div className="footer-brand">
           <Link to="/" className="footer-logo-link">
-            <img src="/images/logo.png" alt="Open Window Staffing" className="footer-logo-img" />
+            <img src="/images/logo.png" alt={BRAND.companyName} className="footer-logo-img" />
           </Link>
           <p className="footer-desc">
             Connecting healthcare professionals with opportunities nationwide.
@@ -46,12 +47,12 @@ export default function Footer() {
             Get the latest job openings and staffing insights delivered to your inbox.
           </p>
           <p className="footer-contact-label">Contact:</p>
-          <a href="mailto:jobs@openwindowstaffing.com" className="footer-contact-link">jobs@openwindowstaffing.com</a>
-          <p className="footer-contact-phone">1-888-373-6736</p>
+          <a href={`mailto:${BRAND.contactEmail}`} className="footer-contact-link">{BRAND.contactEmail}</a>
+          <p className="footer-contact-phone">{BRAND.contactPhone}</p>
         </div>
       </div>
       <div className="footer-bottom">
-        Copyright © Open Window Staffing 2026
+        Copyright © {BRAND.companyName} {new Date().getFullYear()}
       </div>
     </footer>
   );

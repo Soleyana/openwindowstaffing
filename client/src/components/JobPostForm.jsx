@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import { createJob, getMyJobs } from "../api/jobs";
 
 export default function JobPostForm() {
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { user } = useAuth();
+  const toast = useToast();
   const [companyType, setCompanyType] = useState("new");
   const [existingCompanies, setExistingCompanies] = useState([]);
   const [title, setTitle] = useState("");
@@ -41,11 +43,11 @@ export default function JobPostForm() {
   }, []);
 
   useEffect(() => {
-    if (!token) return;
+    if (!user) return;
     let cancelled = false;
     async function load() {
       try {
-        const data = await getMyJobs(token);
+        const data = await getMyJobs();
         const jobs = data.data || [];
         const names = [...new Set(jobs.map((j) => j.company).filter(Boolean))];
         if (!cancelled) setExistingCompanies(names);
@@ -55,7 +57,7 @@ export default function JobPostForm() {
     }
     load();
     return () => { cancelled = true; };
-  }, [token]);
+  }, [user]);
 
   const handleExistingSelect = (e) => {
     const val = e.target.value;
@@ -67,7 +69,7 @@ export default function JobPostForm() {
     setError("");
     setLoading(true);
     try {
-      await createJob(token, {
+      await createJob({
         title,
         description,
         location,
@@ -114,6 +116,14 @@ export default function JobPostForm() {
           <option value="nursing">Nursing</option>
           <option value="allied-health">Allied Health</option>
           <option value="therapy">Therapy</option>
+          <option value="travel-nursing">Travel Nursing</option>
+          <option value="administrative">Administrative</option>
+          <option value="physician-provider">Physician & Provider</option>
+          <option value="behavioral-health">Behavioral Health</option>
+          <option value="pharmacy">Pharmacy</option>
+          <option value="diagnostic-imaging">Diagnostic & Imaging</option>
+          <option value="home-health">Home Health</option>
+          <option value="leadership">Leadership & Management</option>
           <option value="administrative">Administrative</option>
           <option value="other-healthcare">Other Healthcare</option>
         </select>
@@ -283,7 +293,7 @@ export default function JobPostForm() {
           onClick={() => {
             const draft = { title, description, location, jobType, category, company, companyWebsite, companyEmail, companyContactPhone, payRate };
             localStorage.setItem("openwindow_job_draft", JSON.stringify(draft));
-            alert("Draft saved. You can continue editing later.");
+            toast.show("Draft saved. You can continue editing later.");
           }}
         >
           Save Draft

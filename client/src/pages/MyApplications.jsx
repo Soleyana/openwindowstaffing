@@ -2,15 +2,17 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getMyApplications } from "../api/applications";
+import { ROLES } from "../constants/roles";
+import StatusBadge from "../components/StatusBadge";
 
 export default function MyApplications() {
-  const { isLoggedIn, user, token } = useAuth();
+  const { isLoggedIn, user } = useAuth();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!isLoggedIn || user?.role !== "candidate" || !token) {
+    if (!isLoggedIn || user?.role !== ROLES.APPLICANT) {
       setLoading(false);
       return;
     }
@@ -18,7 +20,7 @@ export default function MyApplications() {
     async function load() {
       try {
         setLoading(true);
-        const data = await getMyApplications(token);
+        const data = await getMyApplications();
         if (!cancelled) setApplications(data.data || []);
       } catch (err) {
         if (!cancelled) setError(err.message);
@@ -28,7 +30,7 @@ export default function MyApplications() {
     }
     load();
     return () => { cancelled = true; };
-  }, [isLoggedIn, user?.role, token]);
+  }, [isLoggedIn, user?.role]);
 
   if (!isLoggedIn) {
     return (
@@ -38,7 +40,7 @@ export default function MyApplications() {
     );
   }
 
-  if (user?.role !== "candidate") {
+  if (user?.role !== ROLES.APPLICANT) {
     return (
       <div className="jobs-page">
         <p>This page is for job seekers. <Link to="/post-job">Post a job</Link> as a recruiter.</p>
@@ -64,15 +66,15 @@ export default function MyApplications() {
           {applications.map((app) => (
             <div key={app._id} className="application-card">
               <div className="application-card-main">
-                <Link to={`/jobs/${app.job?._id}`} className="application-card-title">
-                  {app.job?.title}
-                </Link>
+                <div className="application-card-header-row">
+                  <Link to={`/jobs/${app.job?._id}`} className="application-card-title">
+                    {app.job?.title}
+                  </Link>
+                  <StatusBadge status={app.status} />
+                </div>
                 <p className="application-card-meta">
                   {app.job?.company} • {app.job?.location} • {app.job?.jobType}
                 </p>
-                <span className={`application-card-status application-card-status--${app.status}`}>
-                  {app.status}
-                </span>
               </div>
               <p className="application-card-date">
                 Applied {app.createdAt ? new Date(app.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : ""}

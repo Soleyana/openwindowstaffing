@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { isStaff } from "../constants/roles";
 import SignInModal from "../components/SignInModal";
 import JobPostForm from "../components/JobPostForm";
 
@@ -18,7 +19,7 @@ export default function PostJob() {
         </span>
         <span>Post Job</span>
       </nav>
-      {isLoggedIn && user?.role === "recruiter" ? (
+      {isLoggedIn && isStaff(user?.role) ? (
         <div className="post-job-form-wrap">
           <p className="post-job-welcome">Welcome, {user.name}. Post a new job listing.</p>
           <JobPostForm />
@@ -39,8 +40,7 @@ export default function PostJob() {
         </div>
       ) : (
         <div className="post-job-gate">
-          <p className="post-job-gate-text">Only recruiters can post jobs. Sign up as an employer to post listings.</p>
-          <Link to="/signup" className="post-job-signup-btn">Create recruiter account</Link>
+          <p className="post-job-gate-text">Only recruiters can post jobs. Recruiter access is by invite only—contact the site owner to request access.</p>
         </div>
       )}
       <SignInModal isOpen={showSignIn} onClose={() => setShowSignIn(false)} />

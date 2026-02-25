@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { isOwner } from "../constants/roles";
 import { registerUser } from "../api/auth";
 
 export default function Signup() {
@@ -10,7 +11,6 @@ export default function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [role, setRole] = useState("candidate");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -27,9 +27,9 @@ export default function Signup() {
     }
     setLoading(true);
     try {
-      const data = await registerUser(name, email, password, role);
-      login(data.user, data.token);
-      navigate("/dashboard");
+      const data = await registerUser(name, email, password);
+      login(data.user);
+      navigate(isOwner(data.user?.role) ? "/recruiter/dashboard" : "/dashboard");
     } catch (err) {
       setError(err.message || "Registration failed");
     } finally {
@@ -45,6 +45,9 @@ export default function Signup() {
           <Link to="/">Home</Link>
           <span> / Sign Up</span>
         </nav>
+        <p className="auth-invite-notice" style={{ marginBottom: "1rem" }}>
+          Create an account to apply for healthcare jobs.
+        </p>
         <form onSubmit={handleSubmit} className="auth-form">
           {error && <p className="auth-error">{error}</p>}
           <div className="auth-field-wrap">
@@ -97,24 +100,11 @@ export default function Signup() {
               autoComplete="new-password"
             />
           </div>
-          <div className="auth-field-wrap">
-            <label htmlFor="signup-role">I am a</label>
-            <select
-              id="signup-role"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              required
-            >
-              <option value="candidate">Job seeker / Candidate</option>
-              <option value="recruiter">Employer / Recruiter</option>
-            </select>
-          </div>
           <button type="submit" className="auth-submit-btn" disabled={loading}>
             {loading ? "Creating account…" : "CREATE ACCOUNT"}
           </button>
           <p className="auth-switch">
-            Already have an account?{" "}
-            <Link to="/login">Sign in</Link>
+            Already have an account? <Link to="/login">Sign in</Link>
           </p>
         </form>
       </div>

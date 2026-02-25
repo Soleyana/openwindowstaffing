@@ -1,8 +1,9 @@
 import { useState, useCallback } from "react";
+import { BRAND } from "../config";
 
-const testimonials = [
+const getTestimonials = () => [
   {
-    text: "This is such a great website. Uploaded my resume and got employed directly. Open Window Staffing changed my life!",
+    text: `This is such a great website. Uploaded my resume and got employed directly. ${BRAND.companyName} changed my life!`,
     name: "Linda Harris",
     role: "Healthcare Professional",
   },
@@ -12,7 +13,7 @@ const testimonials = [
     role: "Travel RN",
   },
   {
-    text: "As a facility, we've filled 15 positions through Open Window. The quality of candidates is outstanding.",
+    text: `As a facility, we've filled 15 positions through ${BRAND.companyName}. The quality of candidates is outstanding.`,
     name: "Sarah Mitchell",
     role: "HR Director",
   },
@@ -29,6 +30,7 @@ const testimonials = [
 ];
 
 export default function Testimonial() {
+  const testimonials = getTestimonials();
   const [index, setIndex] = useState(0);
   const [touchStart, setTouchStart] = useState(null);
   const [touchEnd, setTouchEnd] = useState(null);

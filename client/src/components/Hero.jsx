@@ -1,12 +1,19 @@
-import { useNavigate } from "react-router-dom";
-import { Link } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useState } from "react";
 
 const categoryOptions = [
   { value: "", label: "Choose a category..." },
   { value: "nursing", label: "Nursing" },
-  { value: "allied", label: "Allied Health" },
+  { value: "allied-health", label: "Allied Health" },
   { value: "therapy", label: "Therapy" },
+  { value: "travel-nursing", label: "Travel Nursing" },
+  { value: "administrative", label: "Administrative" },
+  { value: "physician-provider", label: "Physician & Provider" },
+  { value: "behavioral-health", label: "Behavioral Health" },
+  { value: "pharmacy", label: "Pharmacy" },
+  { value: "diagnostic-imaging", label: "Diagnostic & Imaging" },
+  { value: "home-health", label: "Home Health" },
+  { value: "leadership", label: "Leadership & Management" },
 ];
 
 export default function Hero() {
@@ -25,7 +32,15 @@ export default function Hero() {
   };
 
   return (
-    <section className="hero">
+    <section className="hero hero--video">
+      <div className="hero-video-wrap hero--image-wrap">
+        <img
+          src="/images/top.jpg"
+          alt=""
+          className="hero-bg-image"
+        />
+        <div className="hero-video-overlay" aria-hidden="true" />
+      </div>
       <div className="hero-content">
         <h1 className="hero-title">Find Your Dream Healthcare Job</h1>
         <p className="hero-subtitle">Connect with nursing, allied health, and clinical staffing opportunities nationwide.</p>

@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { isStaff } from "../constants/roles";
+import { BRAND } from "../config";
 import SavedJobsPanel from "./SavedJobsPanel";
 import SignInModal from "./SignInModal";
 
@@ -25,7 +27,7 @@ export default function Navbar() {
   return (
     <nav className={`navbar ${scrolled ? "navbar-scrolled" : ""}`}>
       <Link to="/" className="navbar-logo">
-        <img src="/images/logo.png" alt="Open Window Staffing" className="navbar-logo-img" />
+        <img src="/images/logo.png" alt={BRAND.companyName} className="navbar-logo-img" />
       </Link>
       <button
         type="button"
@@ -44,21 +46,21 @@ export default function Navbar() {
           Home
         </NavLink>
         <div className="navbar-dropdown-wrap">
-          <Link to="/jobs" className="navbar-link navbar-link--dropdown" onClick={() => setMobileMenuOpen(false)}>
+          <Link to="/healthcare-professionals" className="navbar-link navbar-link--dropdown" onClick={() => setMobileMenuOpen(false)}>
             Healthcare Professionals
             <span className="navbar-chevron" aria-hidden="true">▼</span>
           </Link>
           <div className="navbar-dropdown">
             <div className="navbar-dropdown-col">
               <div className="navbar-dropdown-title">Browse Companies</div>
-              <Link to="/jobs" className="navbar-dropdown-link">Companies</Link>
-              <Link to="/jobs" className="navbar-dropdown-link">Companies List</Link>
-              <Link to="/jobs" className="navbar-dropdown-link">Job Alerts</Link>
+              <Link to="/companies" className="navbar-dropdown-link" onClick={() => setMobileMenuOpen(false)}>Companies</Link>
+              <Link to="/companies-list" className="navbar-dropdown-link" onClick={() => setMobileMenuOpen(false)}>Companies List</Link>
+              <Link to="/job-alerts" className="navbar-dropdown-link" onClick={() => setMobileMenuOpen(false)}>Job Alerts</Link>
             </div>
             <div className="navbar-dropdown-col">
               <div className="navbar-dropdown-title">Company Career</div>
-              <Link to="/jobs" className="navbar-dropdown-link">Browse Jobs</Link>
-              <Link to="/jobs" className="navbar-dropdown-link">Career Resources</Link>
+              <Link to="/jobs" className="navbar-dropdown-link" onClick={() => setMobileMenuOpen(false)}>Browse Jobs</Link>
+              <Link to="/career-resources" className="navbar-dropdown-link" onClick={() => setMobileMenuOpen(false)}>Career Resources</Link>
             </div>
             <div className="navbar-dropdown-col">
               <div className="navbar-dropdown-title">Employers</div>
@@ -148,7 +150,7 @@ export default function Navbar() {
               <div className="navbar-user-menu">
                 <p className="navbar-user-name">{user?.name}</p>
                 <p className="navbar-user-email">{user?.email}</p>
-                {user?.role === "recruiter" ? (
+                {isStaff(user?.role) ? (
                   <>
                     <Link to="/dashboard" className="navbar-user-link" onClick={() => setUserMenuOpen(false)}>Dashboard</Link>
                     <Link to="/my-jobs" className="navbar-user-link" onClick={() => setUserMenuOpen(false)}>My jobs</Link>
@@ -177,12 +179,14 @@ export default function Navbar() {
         </div>
         <SavedJobsPanel isOpen={savedJobsOpen} onClose={() => setSavedJobsOpen(false)} />
         <SignInModal isOpen={signInOpen} onClose={() => setSignInOpen(false)} />
-        <Link to="/post-job" className="navbar-cta" onClick={() => setMobileMenuOpen(false)}>
-          POST A JOB
-          <span className="navbar-cta-plus" aria-hidden="true">
-            <span className="navbar-cta-plus-inner">+</span>
-          </span>
-        </Link>
+        {isStaff(user?.role) && (
+          <Link to="/post-job" className="navbar-cta" onClick={() => setMobileMenuOpen(false)}>
+            POST A JOB
+            <span className="navbar-cta-plus" aria-hidden="true">
+              <span className="navbar-cta-plus-inner">+</span>
+            </span>
+          </Link>
+        )}
       </div>
       </div>
     </nav>

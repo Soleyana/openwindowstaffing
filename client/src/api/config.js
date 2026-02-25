@@ -1,4 +1,3 @@
-import { API_BASE_URL } from "../config";
-
-const API_BASE = `${API_BASE_URL}/api`;
+/** Relative /api base - Vite proxy forwards to backend. No hardcoded port. */
+const API_BASE = "/api";
 export default API_BASE;

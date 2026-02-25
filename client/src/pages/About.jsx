@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { BRAND } from "../config";
 
 export default function About() {
   return (
@@ -12,7 +13,7 @@ export default function About() {
         <section className="content-section">
           <h2>Who We Are</h2>
           <p>
-            Open Window Staffing connects healthcare professionals with leading facilities nationwide.
+            {BRAND.companyName} connects healthcare professionals with leading facilities nationwide.
             We specialize in nursing, allied health, and clinical staffing for hospitals, clinics, and
             healthcare systems. Our mission is to match the right talent with the right opportunity.
           </p>

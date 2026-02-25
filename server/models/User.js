@@ -1,5 +1,8 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
+const { ROLES } = require("../constants/roles");
+
+const SALT_ROUNDS = 12;
 
 const userSchema = new mongoose.Schema(
   {
@@ -23,8 +26,8 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["candidate", "recruiter"],
-      required: [true, "Role is required"],
+      enum: Object.values(ROLES),
+      default: ROLES.APPLICANT,
     },
   },
   { timestamps: true }
@@ -32,7 +35,7 @@ const userSchema = new mongoose.Schema(
 
 userSchema.pre("save", async function () {
   if (!this.isModified("password")) return;
-  this.password = await bcrypt.hash(this.password, 12);
+  this.password = await bcrypt.hash(this.password, SALT_ROUNDS);
 });
 
 userSchema.methods.comparePassword = async function (candidatePassword) {

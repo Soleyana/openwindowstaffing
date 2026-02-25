@@ -1,20 +1,25 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { isStaff } from "../constants/roles";
+import { BRAND } from "../config";
+import { useToast } from "../context/ToastContext";
 import { getMyJobs, deleteJob } from "../api/jobs";
 import { getApplicationsForJob } from "../api/applications";
+import StatusBadge from "../components/StatusBadge";
 
 export default function MyJobs() {
-  const { isLoggedIn, user, token } = useAuth();
+  const { isLoggedIn, user } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedJob, setExpandedJob] = useState(null);
   const [applicants, setApplicants] = useState([]);
   const [deletingId, setDeletingId] = useState(null);
+  const toast = useToast();
 
   useEffect(() => {
-    if (!isLoggedIn || user?.role !== "recruiter" || !token) {
+    if (!isLoggedIn || !isStaff(user?.role)) {
       setLoading(false);
       return;
     }
@@ -22,7 +27,7 @@ export default function MyJobs() {
     async function load() {
       try {
         setLoading(true);
-        const data = await getMyJobs(token);
+        const data = await getMyJobs();
         if (!cancelled) setJobs(data.data || []);
       } catch (err) {
         if (!cancelled) setError(err.message);
@@ -32,16 +37,16 @@ export default function MyJobs() {
     }
     load();
     return () => { cancelled = true; };
-  }, [isLoggedIn, user?.role, token]);
+  }, [isLoggedIn, user?.role]);
 
   const handleDelete = async (jobId, jobTitle) => {
     if (!window.confirm(`Delete "${jobTitle}"? This cannot be undone.`)) return;
     try {
       setDeletingId(jobId);
-      await deleteJob(token, jobId);
+      await deleteJob(jobId);
       setJobs((prev) => prev.filter((j) => j._id !== jobId));
     } catch (err) {
-      alert(err.message);
+      toast.show(err.response?.data?.message || err.message || "Failed to delete job", "error");
     } finally {
       setDeletingId(null);
     }
@@ -54,11 +59,11 @@ export default function MyJobs() {
       return;
     }
     try {
-      const data = await getApplicationsForJob(token, jobId);
+      const data = await getApplicationsForJob(jobId);
       setApplicants(data.data || []);
       setExpandedJob(jobId);
     } catch (err) {
-      alert(err.message);
+      toast.show(err.response?.data?.message || err.message || "Failed to load applicants", "error");
     }
   };
 
@@ -70,10 +75,10 @@ export default function MyJobs() {
     );
   }
 
-  if (user?.role !== "recruiter") {
+  if (!isStaff(user?.role)) {
     return (
       <div className="jobs-page">
-        <p>This page is for employers. <Link to="/my-applications">View your applications</Link> as a candidate.</p>
+        <p>This page is for employers. <Link to="/my-applications">View your applications</Link> as an applicant.</p>
       </div>
     );
   }
@@ -108,7 +113,7 @@ export default function MyJobs() {
               <div className="my-job-card-body">
                 <div className="my-job-card-header">
                   <Link to={`/jobs/${job._id}`} className="my-job-card-title">{job.title}</Link>
-                  <span className="my-job-card-meta">{job.company || "Open Window Staffing"} • {job.location || "—"} • Posted {job.createdAt ? new Date(job.createdAt).toLocaleDateString() : "Today"}</span>
+                  <span className="my-job-card-meta">{job.company || BRAND.companyName} • {job.location || "—"} • Posted {job.createdAt ? new Date(job.createdAt).toLocaleDateString() : "Today"}</span>
                 </div>
                 <div className="my-job-card-actions">
                   <span className="my-job-card-count">{job.applicationCount || 0} applicant{job.applicationCount !== 1 ? "s" : ""}</span>
@@ -139,9 +144,12 @@ export default function MyJobs() {
                     <ul>
                       {applicants.map((app) => (
                         <li key={app._id} className="applicant-item">
-                          <div>
-                            <strong>{app.applicant?.name}</strong>
-                            <a href={`mailto:${app.applicant?.email}`}>{app.applicant?.email}</a>
+                          <div className="applicant-item-header">
+                            <div>
+                              <strong>{app.applicant?.name || app.firstName || app.email}</strong>
+                              <a href={`mailto:${app.applicant?.email || app.email}`}>{app.applicant?.email || app.email}</a>
+                            </div>
+                            <StatusBadge status={app.status} />
                           </div>
                           {app.coverMessage && <p className="applicant-cover">{app.coverMessage}</p>}
                           <span className="applicant-date">

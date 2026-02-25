@@ -3,7 +3,7 @@ Content-Type: application/json
 
 {
   "name": "Admin Recruiter",
-  "email": "admin@openwindowstaffing.com",
-  "password": "123456",
+  "email": "your-email@example.com",
+  "password": "your-secure-password",
   "role": "recruiter"
 }

@@ -1,50 +1,26 @@
-import API_BASE from "./config";
+import api from "./axios";
 
 export async function getJobs() {
-  const res = await fetch(`${API_BASE}/jobs`);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Failed to load jobs");
+  const { data } = await api.get("jobs");
   return data;
 }
 
 export async function getJobById(id) {
-  const res = await fetch(`${API_BASE}/jobs/${id}`);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Job not found");
+  const { data } = await api.get(`jobs/${id}`);
   return data;
 }
 
-export async function getMyJobs(token) {
-  const res = await fetch(`${API_BASE}/jobs/my`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Failed to load jobs");
+export async function getMyJobs() {
+  const { data } = await api.get("jobs/my", { withCredentials: true });
   return data;
 }
 
-export async function createJob(token, jobData) {
-  const res = await fetch(`${API_BASE}/jobs`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(jobData),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || "Failed to post job");
-  }
+export async function createJob(jobData) {
+  const { data } = await api.post("jobs", jobData, { withCredentials: true });
   return data;
 }
 
-export async function deleteJob(token, jobId) {
-  const res = await fetch(`${API_BASE}/jobs/${jobId}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Failed to delete job");
+export async function deleteJob(jobId) {
+  const { data } = await api.delete(`jobs/${jobId}`, { withCredentials: true });
   return data;
 }

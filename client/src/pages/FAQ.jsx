@@ -19,7 +19,7 @@ const faqs = [
   {
     category: "For Employers",
     items: [
-      { q: "How do I post a job?", a: "Sign up as an Employer / Recruiter, then use Post a Job to create your listing. You can manage applicants from My Jobs." },
+      { q: "How do I post a job?", a: "Recruiter access is by invite only. Contact the site owner to request access. Once invited, use Post a Job to create listings and manage applicants from My Jobs." },
       { q: "How do I view applicants?", a: "Sign in as a recruiter and go to My Jobs. Click &quot;View applicants&quot; on any job to see candidates who applied." },
     ],
   },

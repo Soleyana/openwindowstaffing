@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { isStaff } from "../constants/roles";
 import { loginUser } from "../api/auth";
 
 export default function SignInModal({ isOpen, onClose }) {
@@ -20,9 +21,9 @@ export default function SignInModal({ isOpen, onClose }) {
     setLoading(true);
     try {
       const data = await loginUser(email, password);
-      login(data.user, data.token);
+      login(data.user);
       onClose();
-      navigate("/dashboard");
+      navigate(isStaff(data.user?.role) ? "/recruiter/dashboard" : "/dashboard");
     } catch (err) {
       setError(err.message || "Login failed");
     } finally {

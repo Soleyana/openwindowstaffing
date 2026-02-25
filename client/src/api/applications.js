@@ -1,42 +1,35 @@
-import API_BASE from "./config";
+import api from "./axios";
 
-export async function applyToJob(token, jobId, coverMessage = "") {
-  const res = await fetch(`${API_BASE}/applications`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ jobId, coverMessage }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Failed to apply");
+export async function submitFullApplication(formData) {
+  const { data } = await api.post("applications/submit", formData, { withCredentials: true });
   return data;
 }
 
-export async function checkApplied(token, jobId) {
-  const res = await fetch(`${API_BASE}/applications/check/${jobId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const data = await res.json();
-  if (!res.ok) return { applied: false };
+export async function applyToJob(jobId, coverMessage = "") {
+  const { data } = await api.post("applications", { jobId, coverMessage }, { withCredentials: true });
   return data;
 }
 
-export async function getMyApplications(token) {
-  const res = await fetch(`${API_BASE}/applications/my`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Failed to load applications");
+export async function checkApplied(jobId) {
+  try {
+    const { data } = await api.get(`applications/check/${jobId}`, { withCredentials: true });
+    return data;
+  } catch {
+    return { applied: false };
+  }
+}
+
+export async function getMyApplications() {
+  const { data } = await api.get("applications/my", { withCredentials: true });
   return data;
 }
 
-export async function getApplicationsForJob(token, jobId) {
-  const res = await fetch(`${API_BASE}/applications/job/${jobId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Failed to load applicants");
+export async function getMyApplicationStats() {
+  const { data } = await api.get("applications/my-stats", { withCredentials: true });
+  return data;
+}
+
+export async function getApplicationsForJob(jobId) {
+  const { data } = await api.get(`applications/job/${jobId}`, { withCredentials: true });
   return data;
 }

@@ -1,20 +1,23 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import StatusBadge from "../components/StatusBadge";
+import { isStaff } from "../constants/roles";
 import { getMyJobs, getJobs } from "../api/jobs";
-import { getMyApplications } from "../api/applications";
+import { getMyApplications, getMyApplicationStats } from "../api/applications";
 
 export default function Dashboard() {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [applications, setApplications] = useState([]);
   const [allJobs, setAllJobs] = useState([]);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const isRecruiter = user?.role === "recruiter";
+  const isRecruiter = isStaff(user?.role);
 
   useEffect(() => {
-    if (!token) {
+    if (!user) {
       setLoading(false);
       return;
     }
@@ -22,16 +25,18 @@ export default function Dashboard() {
     async function load() {
       try {
         if (isRecruiter) {
-          const data = await getMyJobs(token);
+          const data = await getMyJobs();
           if (!cancelled) setJobs(data.data || []);
         } else {
-          const [appData, jobsData] = await Promise.all([
-            getMyApplications(token),
+          const [appData, jobsData, statsData] = await Promise.all([
+            getMyApplications(),
             getJobs(),
+            getMyApplicationStats(),
           ]);
           if (!cancelled) {
             setApplications(appData.data || []);
             setAllJobs(jobsData.data || []);
+            setStats(statsData);
           }
         }
       } catch {
@@ -40,6 +45,7 @@ export default function Dashboard() {
           else {
             setApplications([]);
             setAllJobs([]);
+            setStats(null);
           }
         }
       } finally {
@@ -48,7 +54,7 @@ export default function Dashboard() {
     }
     load();
     return () => { cancelled = true; };
-  }, [token, isRecruiter]);
+  }, [user, isRecruiter]);
 
   if (isRecruiter) {
     const published = jobs.length;
@@ -69,9 +75,19 @@ export default function Dashboard() {
       { month: "Jun", views: 0 },
     ];
 
+    const greeting = (() => {
+      const h = new Date().getHours();
+      if (h < 12) return "Good morning";
+      if (h < 18) return "Good afternoon";
+      return "Good evening";
+    })();
+
     return (
       <div className="dashboard-page">
-        <h1 className="dashboard-title">Dashboard</h1>
+        <div className="dashboard-hero">
+          <h1 className="dashboard-title">{greeting}, {user?.name?.split(" ")[0] || "Recruiter"}</h1>
+          <p className="dashboard-subtitle">Here&apos;s your recruitment overview</p>
+        </div>
         <div className="dashboard-metrics">
           {metrics.map((m) => (
             <div key={m.label} className={`dashboard-metric dashboard-metric--${m.color}`}>
@@ -149,18 +165,16 @@ export default function Dashboard() {
   }
 
   // Candidate dashboard
-  const pending = applications.filter((a) => a.status === "pending").length;
-  const inReview = applications.filter((a) => ["reviewed", "shortlisted"].includes(a.status)).length;
-  const rejected = applications.filter((a) => a.status === "rejected").length;
   const appliedJobIds = applications.map((a) => a.job?._id || a.job).filter(Boolean);
   const recommendedJobs = allJobs.filter((j) => !appliedJobIds.includes(j._id)).slice(0, 4);
   const recentApplications = [...applications].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
 
   const candidateMetrics = [
-    { label: "My Applications", value: applications.length, color: "blue", icon: "check" },
-    { label: "Pending", value: pending, color: "purple", icon: "clock" },
-    { label: "In Review", value: inReview, color: "purple", icon: "edit" },
-    { label: "Rejected", value: rejected, color: "red", icon: "eye" },
+    { label: "My Applications", value: stats?.totalApplications ?? (loading ? "…" : 0), color: "blue", icon: "check" },
+    { label: "Under Review", value: stats?.underReview ?? (loading ? "…" : 0), color: "yellow", icon: "clock" },
+    { label: "Offer", value: stats?.offer ?? (loading ? "…" : 0), color: "purple", icon: "edit" },
+    { label: "Placed", value: stats?.placed ?? (loading ? "…" : 0), color: "green", icon: "check" },
+    { label: "Not Selected", value: stats?.notSelected ?? (loading ? "…" : 0), color: "red", icon: "eye" },
   ];
 
   const MetricIcon = ({ icon }) => {
@@ -171,9 +185,19 @@ export default function Dashboard() {
     return null;
   };
 
+  const greeting = (() => {
+    const h = new Date().getHours();
+    if (h < 12) return "Good morning";
+    if (h < 18) return "Good afternoon";
+    return "Good evening";
+  })();
+
   return (
     <div className="dashboard-page">
-      <h1 className="dashboard-title">Dashboard</h1>
+      <div className="dashboard-hero">
+        <h1 className="dashboard-title">{greeting}, {user?.name?.split(" ")[0] || "there"}</h1>
+        <p className="dashboard-subtitle">Your healthcare career hub</p>
+      </div>
       <div className="dashboard-metrics">
         {candidateMetrics.map((m) => (
           <div key={m.label} className={`dashboard-metric dashboard-metric--${m.color}`}>
@@ -196,12 +220,12 @@ export default function Dashboard() {
           <ul className="dashboard-app-list">
             {recentApplications.map((app) => (
               <li key={app._id} className="dashboard-app-item">
-                <Link to={`/jobs/${app.job?._id}`} className="dashboard-app-link">
-                  {app.job?.title}
-                </Link>
-                <span className={`dashboard-app-status dashboard-app-status--${app.status}`}>
-                  {app.status}
-                </span>
+                <div className="dashboard-app-item-row">
+                  <Link to={`/jobs/${app.job?._id}`} className="dashboard-app-link">
+                    {app.job?.title}
+                  </Link>
+                  <StatusBadge status={app.status} />
+                </div>
               </li>
             ))}
           </ul>

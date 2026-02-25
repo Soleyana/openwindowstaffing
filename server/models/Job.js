@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { DEFAULT_COMPANY } = require("../config/env");
 
 const jobSchema = new mongoose.Schema(
   {
@@ -23,8 +24,15 @@ const jobSchema = new mongoose.Schema(
     },
     category: {
       type: String,
-      enum: ["nursing", "allied-health", "therapy", "administrative", "other-healthcare"],
+      enum: ["RN", "LPN", "CNA", "nursing", "allied-health", "therapy", "travel-nursing", "administrative", "physician-provider", "behavioral-health", "pharmacy", "diagnostic-imaging", "home-health", "leadership", "other-healthcare"],
       default: "other-healthcare",
+    },
+    shift: { type: String, trim: true },
+    salary: { type: String, trim: true },
+    employmentType: {
+      type: String,
+      enum: ["full-time", "part-time", "contract", "travel"],
+      trim: true,
     },
     specialty: {
       type: String,
@@ -36,7 +44,7 @@ const jobSchema = new mongoose.Schema(
     },
     company: {
       type: String,
-      default: "Open Window Staffing",
+      default: DEFAULT_COMPANY,
       trim: true,
     },
     companyWebsite: { type: String, trim: true },

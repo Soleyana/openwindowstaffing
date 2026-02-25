@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { API_BASE_URL } from "../config";
-
-const API_URL = `${API_BASE_URL}/api/jobs`;
+import { getJobs } from "../api/jobs";
 
 export default function LatestJobs() {
   const [jobs, setJobs] = useState([]);
@@ -14,12 +12,11 @@ export default function LatestJobs() {
     async function loadJobs() {
       try {
         setLoading(true);
-        const res = await fetch(API_URL);
-        const json = await res.json();
+        const json = await getJobs();
 
         if (cancelled) return;
 
-        if (res.ok && json.success && Array.isArray(json.data)) {
+        if (json?.success && Array.isArray(json.data)) {
           setJobs(json.data.slice(0, 3));
         } else {
           setJobs([]);

@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { ROLES } from "../constants/roles";
+import { useToast } from "../context/ToastContext";
 import { getJobById } from "../api/jobs";
 import { applyToJob, checkApplied } from "../api/applications";
 
 export default function JobDetail() {
   const { id } = useParams();
-  const { isLoggedIn, user, token } = useAuth();
+  const navigate = useNavigate();
+  const { isLoggedIn, user } = useAuth();
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -14,6 +17,7 @@ export default function JobDetail() {
   const [showApply, setShowApply] = useState(false);
   const [coverMessage, setCoverMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -34,11 +38,11 @@ export default function JobDetail() {
   }, [id]);
 
   useEffect(() => {
-    if (!job || !isLoggedIn || user?.role !== "candidate" || !token) return;
+    if (!job || !isLoggedIn || user?.role !== ROLES.APPLICANT) return;
     let cancelled = false;
     async function check() {
       try {
-        const data = await checkApplied(token, job._id);
+        const data = await checkApplied(job._id);
         if (!cancelled) setApplied(data.applied || false);
       } catch {
         if (!cancelled) setApplied(false);
@@ -46,17 +50,17 @@ export default function JobDetail() {
     }
     check();
     return () => { cancelled = true; };
-  }, [job, isLoggedIn, user?.role, token]);
+  }, [job, isLoggedIn, user?.role]);
 
   const handleApply = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await applyToJob(token, job._id, coverMessage);
+      await applyToJob(job._id, coverMessage);
       setApplied(true);
       setShowApply(false);
     } catch (err) {
-      alert(err.message);
+      toast.show(err.response?.data?.message || err.message || "Failed to apply", "error");
     } finally {
       setSubmitting(false);
     }
@@ -88,13 +92,13 @@ export default function JobDetail() {
           <h3>Description</h3>
           <p>{job.description}</p>
         </div>
-        {isLoggedIn && user?.role === "candidate" && (
+        {isLoggedIn && user?.role === ROLES.APPLICANT && (
           <div className="job-detail-apply">
             {applied ? (
               <p className="job-detail-applied">✓ You have applied to this job</p>
             ) : (
               <>
-                <button type="button" className="job-detail-apply-btn" onClick={() => setShowApply(true)}>
+                <button type="button" className="job-detail-apply-btn" onClick={() => navigate(`/apply/${job._id}`)}>
                   Apply for this job
                 </button>
                 {showApply && (

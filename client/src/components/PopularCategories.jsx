@@ -1,18 +1,15 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { API_BASE_URL } from "../config";
-
-const API_URL = `${API_BASE_URL}/api/jobs`;
+import { getJobs } from "../api/jobs";
 
 export default function PopularCategories() {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    fetch(API_URL)
-      .then((res) => res.json())
+    getJobs()
       .then((json) => {
-        if (!cancelled && json.success && Array.isArray(json.data)) {
+        if (!cancelled && json?.success && Array.isArray(json.data)) {
           setCount(json.data.length);
         }
       })
@@ -21,9 +18,14 @@ export default function PopularCategories() {
   }, []);
 
   const categories = [
-    { name: "Nursing", count },
-    { name: "Allied Health", count },
-    { name: "Therapy", count },
+    { name: "Nursing", slug: "nursing", count },
+    { name: "Allied Health", slug: "allied-health", count },
+    { name: "Therapy", slug: "therapy", count },
+    { name: "Travel Nursing", slug: "travel-nursing", count },
+    { name: "Administrative", slug: "administrative", count },
+    { name: "Behavioral Health", slug: "behavioral-health", count },
+    { name: "Pharmacy", slug: "pharmacy", count },
+    { name: "Home Health", slug: "home-health", count },
   ];
 
   return (
@@ -31,7 +33,7 @@ export default function PopularCategories() {
       <h2 className="popular-categories-title">Popular Categories</h2>
       <div className="popular-categories-list">
         {categories.map((cat, i) => (
-          <Link key={i} to="/jobs" className="popular-category-item">
+          <Link key={i} to={`/jobs?category=${cat.slug}`} className="popular-category-item">
             <span className="popular-category-name">{cat.name}</span>
             <span className="popular-category-count">
               ({cat.count} open positions)

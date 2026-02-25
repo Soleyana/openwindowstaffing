@@ -1,35 +1,66 @@
-import API_BASE from "./config";
+import api from "./axios";
 
-async function apiFetch(url, options) {
-  try {
-    const res = await fetch(url, options);
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      throw new Error(data.message || "Request failed");
-    }
-    return data;
-  } catch (err) {
-    if (err.message === "Failed to fetch" || err.name === "TypeError") {
-      throw new Error("Could not connect to server. Make sure the backend is running (npm start in the server folder).");
-    }
-    throw err;
+function sanitizeAuthError(msg) {
+  if (!msg || typeof msg !== "string") return msg;
+  const lower = msg.toLowerCase();
+  if (lower.includes("bad auth") || lower.includes("authentication failed") || lower.includes("mongo") || lower.includes("database connection")) {
+    return "We're unable to connect to our systems right now. Please try again shortly or contact support if the issue persists.";
   }
+  return msg;
 }
 
 export async function loginUser(email, password) {
-  const data = await apiFetch(`${API_BASE}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  return data;
+  try {
+    const { data } = await api.post("auth/login", { email, password }, { withCredentials: true });
+    return data;
+  } catch (err) {
+    const msg = err.response?.data?.message || err.message;
+    throw new Error(sanitizeAuthError(msg) || "Authentication failed");
+  }
 }
 
-export async function registerUser(name, email, password, role) {
-  const data = await apiFetch(`${API_BASE}/auth/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, email, password, role }),
-  });
+export async function registerUser(name, email, password) {
+  try {
+    const { data } = await api.post("auth/register", { name, email, password }, { withCredentials: true });
+    return data;
+  } catch (err) {
+    const msg = err.response?.data?.message || err.message;
+    throw new Error(sanitizeAuthError(msg) || "Registration failed");
+  }
+}
+
+export async function logoutUser() {
+  try {
+    await api.post("auth/logout", {}, { withCredentials: true });
+  } catch {
+    // Ignore
+  }
+}
+
+export async function fetchMe() {
+  try {
+    const { data } = await api.get("auth/me", { withCredentials: true });
+    return data.user;
+  } catch {
+    return null;
+  }
+}
+
+export async function acceptInvite(token, name, password) {
+  try {
+    const { data } = await api.post(
+      "auth/accept-invite",
+      { token, name, password },
+      { withCredentials: true }
+    );
+    return data;
+  } catch (err) {
+    const msg = err.response?.data?.message || err.message;
+    throw new Error(msg || "Failed to accept invite");
+  }
+}
+
+export async function updateProfile(updates) {
+  const { data } = await api.patch("auth/me", updates, { withCredentials: true });
   return data;
 }
