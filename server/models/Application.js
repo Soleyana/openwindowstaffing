@@ -49,6 +49,8 @@ const applicationSchema = new mongoose.Schema({
   willingToTravel: { type: String },
   message: { type: String },
   resumeUrl: { type: String },
+  signature: { type: String },
+  signatureDate: { type: String },
   status: {
     type: String,
     enum: ALLOWED_STATUSES,

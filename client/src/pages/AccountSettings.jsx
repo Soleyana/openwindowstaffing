@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { updateProfile } from "../api/auth";
+import { PASSWORD_RULES } from "../config";
 
 export default function AccountSettings() {
   const { user, login } = useAuth();
@@ -32,10 +33,17 @@ export default function AccountSettings() {
       setLoading(false);
       return;
     }
-    if (newPassword && newPassword.length < 6) {
-      setError("New password must be at least 6 characters");
-      setLoading(false);
-      return;
+    if (newPassword) {
+      if (newPassword.length < 8) {
+        setError("New password must be at least 8 characters");
+        setLoading(false);
+        return;
+      }
+      if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+        setError(PASSWORD_RULES);
+        setLoading(false);
+        return;
+      }
     }
     if (newPassword && !currentPassword) {
       setError("Enter your current password to change it");
@@ -128,8 +136,8 @@ export default function AccountSettings() {
             type="password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            placeholder="At least 6 characters"
-            minLength={6}
+            placeholder={PASSWORD_RULES}
+            minLength={8}
             autoComplete="new-password"
           />
         </div>

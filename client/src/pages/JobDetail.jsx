@@ -1,10 +1,15 @@
 import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
 import { useAuth } from "../context/AuthContext";
 import { ROLES } from "../constants/roles";
 import { useToast } from "../context/ToastContext";
+import { BRAND } from "../config";
+import { trackEvent } from "../components/Analytics";
 import { getJobById } from "../api/jobs";
 import { applyToJob, checkApplied } from "../api/applications";
+
+const SITE_URL = import.meta.env.VITE_SITE_URL || (typeof window !== "undefined" ? window.location.origin : "");
 
 export default function JobDetail() {
   const { id } = useParams();
@@ -67,13 +72,22 @@ export default function JobDetail() {
   };
 
   if (loading) return <div className="jobs-page"><p className="jobs-loading">Loading…</p></div>;
-  if (error || !job) return <div className="jobs-page"><p className="jobs-error">{error || "Job not found"}</p><Link to="/jobs">← Back to jobs</Link></div>;
+  if (error || !job) return <div className="jobs-page"><p className="jobs-error">This job is no longer available.</p><p className="jobs-error-sub">It may have been filled or removed by the employer.</p><Link to="/jobs">← Back to jobs</Link></div>;
 
   const jobTypeLabel = job.jobType?.replace("-", " ") || "";
   const postedDate = job.createdAt ? new Date(job.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "";
+  const jobDesc = job.description ? String(job.description).slice(0, 160).replace(/\s+/g, " ").trim() + "…" : `${job.title} – ${job.company || ""} at ${BRAND.companyName}`;
 
   return (
     <div className="jobs-page">
+      <Helmet>
+        <title>{job.title} – {BRAND.companyName}</title>
+        <meta name="description" content={jobDesc} />
+        <meta property="og:title" content={`${job.title} – ${BRAND.companyName}`} />
+        <meta property="og:description" content={jobDesc} />
+        <meta property="og:type" content="website" />
+        {SITE_URL && <meta property="og:url" content={`${SITE_URL}/jobs/${job._id}`} />}
+      </Helmet>
       <nav className="jobs-nav">
         <Link to="/jobs">← Back to jobs</Link>
       </nav>
@@ -98,7 +112,7 @@ export default function JobDetail() {
               <p className="job-detail-applied">✓ You have applied to this job</p>
             ) : (
               <>
-                <button type="button" className="job-detail-apply-btn" onClick={() => navigate(`/apply/${job._id}`)}>
+                <button type="button" className="job-detail-apply-btn" onClick={() => { trackEvent("apply_button_click", { job_id: job._id, job_title: job.title }); navigate(`/apply/${job._id}`); }}>
                   Apply for this job
                 </button>
                 {showApply && (

@@ -1,5 +1,6 @@
 require("dotenv").config();
 
+const logger = require("./utils/logger");
 const express = require("express");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
@@ -16,12 +17,13 @@ const jobRoutes = require("./routes/jobRoutes");
 const applicationRoutes = require("./routes/applicationRoutes");
 const inviteRoutes = require("./routes/inviteRoutes");
 const recruiterApplicationRoutes = require("./routes/recruiterApplicationRoutes");
+const contactRoutes = require("./routes/contactRoutes");
 
 const app = express();
 
 if (process.env.NODE_ENV !== "production") {
   app.use((req, res, next) => {
-    console.log(`${req.method} ${req.url}`);
+    logger.info({ method: req.method, url: req.url }, "request");
     next();
   });
 }
@@ -61,6 +63,7 @@ app.use("/api/jobs", jobRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/invites", inviteRoutes);
 app.use("/api/recruiter", recruiterApplicationRoutes);
+app.use("/api/contact", contactRoutes);
 
 /* 404 – unknown routes */
 app.use((req, res) => {
@@ -83,7 +86,7 @@ app.use((err, req, res, next) => {
 
 /* 500 – server error handling */
 app.use((err, req, res, next) => {
-  console.error(err);
+  logger.error({ err: { message: err.message, stack: err.stack } }, "Unhandled error");
   const raw = (err.message || "").toLowerCase();
   const isDbError =
     raw.includes("bad auth") ||
@@ -102,8 +105,7 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   await connectDB();
   app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log("✓ Routes: GET /api/applications/ping, POST /api/applications/submit");
+    logger.info(`Server running on port ${PORT}`);
   });
 };
 

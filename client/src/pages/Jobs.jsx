@@ -1,7 +1,11 @@
 import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
+import { BRAND } from "../config";
 import JobCard from "../components/JobCard";
 import { getJobs } from "../api/jobs";
+
+const SITE_URL = import.meta.env.VITE_SITE_URL || (typeof window !== "undefined" ? window.location.origin : "");
 
 export default function Jobs() {
   const [searchParams] = useSearchParams();
@@ -12,11 +16,18 @@ export default function Jobs() {
   const [keywords, setKeywords] = useState(searchParams.get("keywords") || "");
   const [location, setLocation] = useState(searchParams.get("location") || "");
   const [category, setCategory] = useState(searchParams.get("category") || "");
+  const [company, setCompany] = useState(searchParams.get("company") || "");
+  const [jobTypes, setJobTypes] = useState(() => {
+    const t = searchParams.get("jobType");
+    return t ? t.split(",") : ["full-time", "part-time", "contract", "travel"];
+  });
 
   useEffect(() => {
     setKeywords(searchParams.get("keywords") || "");
     setLocation(searchParams.get("location") || "");
     setCategory(searchParams.get("category") || "");
+    const t = searchParams.get("jobType");
+    setJobTypes(t ? t.split(",") : ["full-time", "part-time", "contract", "travel"]);
   }, [searchParams]);
 
   useEffect(() => {
@@ -26,7 +37,9 @@ export default function Jobs() {
       try {
         setLoading(true);
         setError(null);
-        const json = await getJobs();
+        const params = { keywords: keywords || undefined, location: location || undefined, category: category || undefined, company: company || undefined };
+        if (jobTypes.length > 0 && jobTypes.length < 4) params.jobType = jobTypes; else delete params.jobType;
+        const json = await getJobs(params);
 
         if (cancelled) return;
 
@@ -48,10 +61,18 @@ export default function Jobs() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [keywords, location, category, company, jobTypes.join(",")]);
 
   return (
     <div className="jobs-page">
+      <Helmet>
+        <title>Healthcare Jobs – {BRAND.companyName}</title>
+        <meta name="description" content={`Browse healthcare job openings at ${BRAND.companyName}. Nursing, allied health, travel nursing, therapy positions.`} />
+        <meta property="og:title" content={`Healthcare Jobs – ${BRAND.companyName}`} />
+        <meta property="og:description" content={`Browse healthcare job openings.`} />
+        <meta property="og:type" content="website" />
+        {SITE_URL && <meta property="og:url" content={`${SITE_URL}/jobs`} />}
+      </Helmet>
       <nav className="jobs-nav">
         <Link to="/">← Home</Link>
       </nav>
@@ -199,22 +220,26 @@ export default function Jobs() {
           </div>
         )}
         <div className="jobs-search-types">
-          <label className="jobs-search-type-item">
-            <input type="checkbox" className="jobs-search-type-check" defaultChecked readOnly aria-label="Full Time" />
-            <span>Full Time</span>
-          </label>
-          <label className="jobs-search-type-item">
-            <input type="checkbox" className="jobs-search-type-check" defaultChecked readOnly aria-label="Part Time" />
-            <span>Part Time</span>
-          </label>
-          <label className="jobs-search-type-item">
-            <input type="checkbox" className="jobs-search-type-check" defaultChecked readOnly aria-label="Contract" />
-            <span>Contract</span>
-          </label>
-          <label className="jobs-search-type-item">
-            <input type="checkbox" className="jobs-search-type-check" defaultChecked readOnly aria-label="Travel" />
-            <span>Travel</span>
-          </label>
+          {(["full-time", "part-time", "contract", "travel"]).map((type) => (
+            <label key={type} className="jobs-search-type-item">
+              <input
+                type="checkbox"
+                className="jobs-search-type-check"
+                checked={jobTypes.includes(type)}
+                onChange={(e) => {
+                  const next = e.target.checked ? [...jobTypes, type] : jobTypes.filter((t) => t !== type);
+                  const final = next.length > 0 ? next : ["full-time", "part-time", "contract", "travel"];
+                  setJobTypes(final);
+                  const params = new URLSearchParams(searchParams);
+                  if (final.length < 4) params.set("jobType", final.join(","));
+                  else params.delete("jobType");
+                  window.history.replaceState({}, "", `/jobs?${params.toString()}`);
+                }}
+                aria-label={type.replace("-", " ")}
+              />
+              <span>{type.replace("-", " ")}</span>
+            </label>
+          ))}
         </div>
         </form>
       </div>
@@ -222,29 +247,21 @@ export default function Jobs() {
       {loading && <p className="jobs-loading">Loading jobs…</p>}
       {error && <p className="jobs-error">{error}</p>}
 
-      {!loading && !error && jobs.length === 0 && (
+      {!loading && !error && jobs.length === 0 && !keywords && !location && !category && (jobTypes.length === 4 || jobTypes.length === 0) && (
         <p className="jobs-empty">No jobs posted yet.</p>
       )}
 
-      {!loading && !error && jobs.length > 0 && (() => {
-        const filtered = jobs.filter((job) => {
-              const kw = (keywords || "").toLowerCase();
-              const loc = (location || "").toLowerCase();
-              if (category && job.category !== category) return false;
-              if (kw && !(job.title?.toLowerCase().includes(kw) || job.description?.toLowerCase().includes(kw) || job.company?.toLowerCase().includes(kw) || job.location?.toLowerCase().includes(kw))) return false;
-              if (loc && !job.location?.toLowerCase().includes(loc)) return false;
-              return true;
-            });
-        return filtered.length === 0 ? (
-          <p className="jobs-empty">No jobs match your search. Try different keywords or <Link to="/jobs">clear filters</Link>.</p>
-        ) : (
-          <div className="jobs-list">
-            {filtered.map((job) => (
-              <JobCard key={job._id} job={job} />
-            ))}
-          </div>
-        );
-      })()}
+      {!loading && !error && jobs.length > 0 && (
+        <div className="jobs-list">
+          {jobs.map((job) => (
+            <JobCard key={job._id} job={job} />
+          ))}
+        </div>
+      )}
+
+      {!loading && !error && jobs.length === 0 && (keywords || location || category || (jobTypes.length > 0 && jobTypes.length < 4)) && (
+        <p className="jobs-empty">No jobs match your search. Try different filters or <Link to="/jobs">clear filters</Link>.</p>
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { isOwner } from "../constants/roles";
 import { registerUser } from "../api/auth";
+import { PASSWORD_RULES } from "../config";
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -21,15 +22,19 @@ export default function Signup() {
       setError("Passwords do not match");
       return;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters");
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters");
+      return;
+    }
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+      setError(PASSWORD_RULES);
       return;
     }
     setLoading(true);
     try {
       const data = await registerUser(name, email, password);
       login(data.user);
-      navigate(isOwner(data.user?.role) ? "/recruiter/dashboard" : "/dashboard");
+      navigate(isOwner(data.user?.role) ? "/dashboard" : "/dashboard");
     } catch (err) {
       setError(err.message || "Registration failed");
     } finally {
@@ -79,13 +84,14 @@ export default function Signup() {
             <input
               id="signup-password"
               type="password"
-              placeholder="At least 6 characters"
+              placeholder={PASSWORD_RULES}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={6}
+              minLength={8}
               autoComplete="new-password"
             />
+            <span className="auth-hint">{PASSWORD_RULES}</span>
           </div>
           <div className="auth-field-wrap">
             <label htmlFor="signup-confirm">Confirm password</label>
@@ -96,7 +102,7 @@ export default function Signup() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              minLength={6}
+              minLength={8}
               autoComplete="new-password"
             />
           </div>

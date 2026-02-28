@@ -2175,6 +2175,11 @@
   color: var(--text-dark);
 }
 
+.auth-hint {
+  font-size: 0.8rem;
+  color: var(--text-light, #64748b);
+}
+
 .auth-field-wrap input,
 .auth-field-wrap select {
   height: 48px;
@@ -2909,6 +2914,12 @@
   color: #c00;
 }
 
+.jobs-error-sub {
+  margin: 0.25rem 0 1rem;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
 .jobs-list {
   display: flex;
   flex-direction: column;
@@ -3076,6 +3087,13 @@
   line-height: 1.6;
 }
 
+/* Apply job form - responsive grid */
+@media (max-width: 600px) {
+  .apply-job-row {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 .job-detail-apply {
   margin-top: 2rem;
 }
@@ -3177,6 +3195,12 @@
 
 .application-card-title:hover {
   text-decoration: underline;
+}
+
+.application-card-title--unavailable {
+  color: #64748b;
+  font-style: italic;
+  cursor: default;
 }
 
 .application-card-meta {
@@ -3346,6 +3370,26 @@
 
 .my-job-card-view-btn:hover {
   background: rgba(91, 108, 255, 0.08);
+}
+
+.my-job-card-export-btn {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: #047857;
+  background: none;
+  border: 1px solid #047857;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.my-job-card-export-btn:hover {
+  background: rgba(4, 120, 87, 0.08);
+}
+
+.my-job-card-export-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .my-job-applicants {
@@ -4405,10 +4449,18 @@ img {
   cursor: pointer;
   font-size: 0.85rem;
   border-radius: 4px;
+  color: #1e293b;
 }
 .pipeline-card-dropdown button:hover { background: #f1f5f9; }
 .pipeline-card-job { font-size: 0.8rem; color: #64748b; margin-top: 0.25rem; }
 .pipeline-card-date { font-size: 0.75rem; color: #94a3b8; margin-top: 0.25rem; }
+.pipeline-column-over { background: #e0f2fe; border-color: #0ea5e9; }
+.pipeline-card-wrapper.pipeline-card-dragging { opacity: 0.5; }
+.pipeline-card-overlay {
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  transform: rotate(2deg);
+  cursor: grabbing;
+}
 
 .pipeline-drawer-backdrop {
   position: fixed;

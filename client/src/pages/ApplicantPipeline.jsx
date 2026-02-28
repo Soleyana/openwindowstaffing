@@ -1,4 +1,13 @@
 import { useState, useEffect } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDraggable,
+  useDroppable,
+} from "@dnd-kit/core";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import {
@@ -12,7 +21,7 @@ import {
 } from "../constants/applicationStatuses";
 import { API_BASE_URL } from "../config";
 
-function ApplicantCard({ app, onStatusChange, onSelect }) {
+function ApplicantCardInner({ app, onStatusChange, onSelect }) {
   const [open, setOpen] = useState(false);
   const applicantName = [app.firstName, app.lastName].filter(Boolean).join(" ") || app.email || "—";
 
@@ -54,6 +63,43 @@ function ApplicantCard({ app, onStatusChange, onSelect }) {
       <div className="pipeline-card-job">{app.jobTitle || app.job?.title || "—"}</div>
       <div className="pipeline-card-date">
         Applied {app.createdAt ? new Date(app.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+      </div>
+    </div>
+  );
+}
+
+function DraggableApplicantCard({ app, onStatusChange, onSelect }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: app._id,
+    data: { app },
+  });
+  return (
+    <div ref={setNodeRef} {...listeners} {...attributes} className={`pipeline-card-wrapper ${isDragging ? "pipeline-card-dragging" : ""}`}>
+      <ApplicantCardInner app={app} onStatusChange={onStatusChange} onSelect={onSelect} />
+    </div>
+  );
+}
+
+function DroppableColumn({ status, applications, onStatusChange, onSelect }) {
+  const { setNodeRef, isOver } = useDroppable({ id: status });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`pipeline-column ${isOver ? "pipeline-column-over" : ""}`}
+    >
+      <h3 className="pipeline-column-title">{PIPELINE_COLUMN_LABELS[status]}</h3>
+      <div className="pipeline-column-cards">
+        {applications.map((app) => (
+          <DraggableApplicantCard
+            key={app._id}
+            app={app}
+            onStatusChange={onStatusChange}
+            onSelect={onSelect}
+          />
+        ))}
+        {applications.length === 0 && (
+          <div className="pipeline-column-empty">No applicants</div>
+        )}
       </div>
     </div>
   );
@@ -107,7 +153,7 @@ function ApplicantDrawer({ app, onClose, onStatusChange, onNoteAdded }) {
             <section className="pipeline-drawer-section">
               <h3>Resume</h3>
               <a
-                href={`${API_BASE_URL}/uploads/${app.resumeUrl}`}
+                href={`${API_BASE_URL || ""}/api/applications/${app._id}/resume`}
                 target="_blank"
                 rel="noreferrer"
               >
@@ -162,15 +208,30 @@ export default function ApplicantPipeline() {
   const [data, setData] = useState({ byStatus: {}, applications: [] });
   const [loading, setLoading] = useState(true);
   const [selectedApp, setSelectedApp] = useState(null);
+  const [activeApp, setActiveApp] = useState(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const load = async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const res = await getRecruiterApplications();
-      setData(res.data || { byStatus: {}, applications: [] });
-    } catch {
+      const result = res?.data ?? res;
+      if (result && typeof result === "object") {
+        const byStatus = { ...result.byStatus };
+        PIPELINE_STATUSES.forEach((s) => {
+          if (!Array.isArray(byStatus[s])) byStatus[s] = [];
+        });
+        setData({ ...result, byStatus });
+      } else {
+        setData({ byStatus: {}, applications: [] });
+      }
+    } catch (err) {
       setData({ byStatus: {}, applications: [] });
+      toast.show(err?.response?.data?.message || "Failed to load applicants", "error");
     } finally {
       setLoading(false);
     }
@@ -234,26 +295,38 @@ export default function ApplicantPipeline() {
       <h1 className="pipeline-title">Applicant Pipeline</h1>
       <p className="pipeline-subtitle">Manage applicants across jobs. Drag cards or use the menu to move between stages.</p>
 
-      <div className="pipeline-board">
-        {PIPELINE_STATUSES.map((status) => (
-          <div key={status} className="pipeline-column">
-            <h3 className="pipeline-column-title">{PIPELINE_COLUMN_LABELS[status]}</h3>
-            <div className="pipeline-column-cards">
-              {(data.byStatus?.[status] || []).map((app) => (
-                <ApplicantCard
-                  key={app._id}
-                  app={app}
-                  onStatusChange={handleStatusChange}
-                  onSelect={setSelectedApp}
-                />
-              ))}
-              {(data.byStatus?.[status] || []).length === 0 && (
-                <div className="pipeline-column-empty">No applicants</div>
-              )}
+      <DndContext
+        sensors={sensors}
+        onDragStart={(ev) => {
+          const app = data.applications?.find((a) => a._id === ev.active.id) || Object.values(data.byStatus || {}).flat().find((a) => a._id === ev.active.id);
+          setActiveApp(app || null);
+        }}
+        onDragEnd={(ev) => {
+          setActiveApp(null);
+          const { active, over } = ev;
+          if (!over?.id || active.id === over.id) return;
+          let targetStatus = PIPELINE_STATUSES.includes(over.id) ? over.id : null;
+          if (!targetStatus) {
+            const overApp = data.applications?.find((a) => a._id === over.id) || Object.values(data.byStatus || {}).flat().find((a) => a._id === over.id);
+            if (overApp) targetStatus = overApp.status;
+          }
+          if (targetStatus) handleStatusChange(active.id, targetStatus);
+        }}
+      >
+        <div className="pipeline-board">
+          {PIPELINE_STATUSES.map((status) => (
+            <DroppableColumn key={status} status={status} applications={data.byStatus?.[status] || []} onStatusChange={handleStatusChange} onSelect={setSelectedApp} />
+          ))}
+        </div>
+        <DragOverlay>
+          {activeApp ? (
+            <div className="pipeline-card pipeline-card-overlay">
+              <strong className="pipeline-card-name">{[activeApp.firstName, activeApp.lastName].filter(Boolean).join(" ") || activeApp.email || "—"}</strong>
+              <div className="pipeline-card-job">{activeApp.jobTitle || activeApp.job?.title || "—"}</div>
             </div>
-          </div>
-        ))}
-      </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
 
       {selectedApp && (
         <ApplicantDrawer

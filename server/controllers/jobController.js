@@ -1,9 +1,13 @@
 const Job = require("../models/Job");
 const { sanitizeErrorMessage } = require("../utils/sanitizeError");
 
+function escapeRegex(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 exports.createJob = async (req, res) => {
   try {
-    const { title, description, location, jobType, category, specialty, payRate, company, companyWebsite, companyEmail, companyContactPhone, shift, salary, employmentType } = req.body;
+    const { title, description, location, jobType, category, specialty, payRate, company, companyWebsite, companyEmail, companyContactPhone, shift, salary, employmentType, expiresAt } = req.body;
 
     if (!title || !description || !location || !jobType) {
       return res.status(400).json({
@@ -40,6 +44,10 @@ exports.createJob = async (req, res) => {
     if (shift !== undefined) jobData.shift = shift;
     if (salary !== undefined) jobData.salary = salary;
     if (employmentType !== undefined) jobData.employmentType = employmentType;
+    if (expiresAt) {
+      const d = new Date(expiresAt);
+      if (!isNaN(d.getTime())) jobData.expiresAt = d;
+    }
 
     const job = await Job.create(jobData);
 
@@ -61,10 +69,43 @@ const NON_HEALTHCARE_TITLES = /software engineer|data scientist|web developer|fr
 
 exports.getAllJobs = async (req, res) => {
   try {
-    let jobs = await Job.find()
+    const now = new Date();
+    const { keywords, location, category, jobType, company } = req.query;
+
+    const query = {
+      $or: [
+        { expiresAt: null },
+        { expiresAt: { $gt: now } },
+      ],
+    };
+    if (location?.trim()) {
+      query.location = new RegExp(escapeRegex(location.trim()), "i");
+    }
+    if (category?.trim()) {
+      query.category = category.trim();
+    }
+    if (jobType?.trim()) {
+      const types = jobType.split(",").map((t) => t.trim()).filter(Boolean);
+      if (types.length === 1) query.jobType = types[0];
+      else if (types.length > 1) query.jobType = { $in: types };
+    }
+    if (company?.trim()) {
+      query.company = new RegExp(escapeRegex(company.trim()), "i");
+    }
+    let jobs = await Job.find(query)
       .sort({ createdAt: -1 })
       .populate("createdBy", "name email");
 
+    if (keywords?.trim()) {
+      const kw = new RegExp(escapeRegex(keywords.trim()), "i");
+      jobs = jobs.filter(
+        (j) =>
+          kw.test(j.title || "") ||
+          kw.test(j.description || "") ||
+          kw.test(j.company || "") ||
+          kw.test(j.location || "")
+      );
+    }
     jobs = jobs.filter((job) => !NON_HEALTHCARE_TITLES.test(job.title || ""));
 
     return res.status(200).json({
@@ -84,6 +125,12 @@ exports.getJobById = async (req, res) => {
     const job = await Job.findById(req.params.id).populate("createdBy", "name email");
 
     if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: "Job not found",
+      });
+    }
+    if (job.expiresAt && job.expiresAt < new Date()) {
       return res.status(404).json({
         success: false,
         message: "Job not found",
@@ -123,7 +170,7 @@ exports.updateJob = async (req, res) => {
         message: "Not authorized to update this job",
       });
     }
-    const { title, description, location, jobType, category, specialty, payRate, company } = req.body;
+    const { title, description, location, jobType, category, specialty, payRate, company, expiresAt } = req.body;
     if (title !== undefined) job.title = title;
     if (description !== undefined) job.description = description;
     if (location !== undefined) job.location = location;
@@ -132,6 +179,14 @@ exports.updateJob = async (req, res) => {
     if (specialty !== undefined) job.specialty = specialty;
     if (payRate !== undefined) job.payRate = payRate;
     if (company !== undefined) job.company = company;
+    if (expiresAt !== undefined) {
+      if (expiresAt === null || expiresAt === "") {
+        job.expiresAt = null;
+      } else {
+        const d = new Date(expiresAt);
+        if (!isNaN(d.getTime())) job.expiresAt = d;
+      }
+    }
     await job.save();
     const populated = await Job.findById(job._id).populate("createdBy", "name email");
     return res.status(200).json({

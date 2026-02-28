@@ -39,7 +39,9 @@ export default function Footer() {
           <Link to="/faq" className="footer-col-link">FAQ</Link>
         </div>
         <div className="footer-col">
-          <h4 className="footer-col-title">Awards</h4>
+          <h4 className="footer-col-title">Legals</h4>
+          <Link to="/legal" className="footer-col-link">Privacy Policy</Link>
+          <Link to="/legal#terms" className="footer-col-link">Terms of Service</Link>
         </div>
         <div className="footer-col">
           <h4 className="footer-col-title">Subscribe To Our Newsletter</h4>

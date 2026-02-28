@@ -1,6 +1,8 @@
 const Application = require("../models/Application");
 const Job = require("../models/Job");
+const logger = require("../utils/logger");
 const { sanitizeErrorMessage } = require("../utils/sanitizeError");
+const emailService = require("../services/emailService");
 const { ROLES, STAFF_ROLES } = require("../constants/roles");
 const { DEFAULT_STATUS } = require("../constants/applicationStatuses");
 const { toApplicantStatus } = require("../services/applicationService");
@@ -202,6 +204,15 @@ exports.createApplication = async (req, res) => {
       .populate("jobId", "title company location")
       .populate("applicant", "name email");
 
+    const applicantEmail = application.email || req.user?.email;
+    if (applicantEmail) {
+      emailService.sendApplicationConfirmation(
+        applicantEmail,
+        `${application.firstName} ${application.lastName}`.trim() || req.user?.name,
+        job.title
+      ).catch((err) => console.error("[Email] Application confirmation failed:", err?.message));
+    }
+
     return res.status(201).json({
       success: true,
       data: populated,
@@ -245,6 +256,57 @@ exports.getApplicationsForJob = async (req, res) => {
     res.status(500).json({
       success: false,
       message: sanitizeErrorMessage(error, "Failed to fetch applications"),
+    });
+  }
+};
+
+function escapeCsv(val) {
+  if (val == null || val === "") return "";
+  const s = String(val);
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+exports.exportApplicationsForJob = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const job = await Job.findById(jobId).select("title createdBy");
+    if (!job) {
+      return res.status(404).json({ success: false, message: "Job not found" });
+    }
+    const isOwner = req.user.role === ROLES.OWNER;
+    const ownsJob = job.createdBy && job.createdBy.toString() === req.user._id.toString();
+    if (!isOwner && !ownsJob) {
+      return res.status(403).json({ success: false, message: "Not authorized to export applications for this job" });
+    }
+
+    const applications = await Application.find({ jobId })
+      .populate("applicant", "name email")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const headers = ["Name", "Email", "Phone", "Status", "Applied Date"];
+    const rows = applications.map((app) => {
+      const name = app.applicant?.name || [app.firstName, app.lastName].filter(Boolean).join(" ") || "—";
+      const email = app.applicant?.email || app.email || "—";
+      const phone = app.phone || "—";
+      const status = app.status || "—";
+      const date = app.createdAt ? new Date(app.createdAt).toISOString().slice(0, 10) : "—";
+      return [name, email, phone, status, date];
+    });
+
+    const csvContent = [headers.map(escapeCsv).join(","), ...rows.map((r) => r.map(escapeCsv).join(","))].join("\n");
+    const filename = `applicants-${job.title?.replace(/[^a-z0-9]/gi, "-") || jobId}-${Date.now()}.csv`;
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send("\uFEFF" + csvContent);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: sanitizeErrorMessage(error, "Failed to export applicants"),
     });
   }
 };
@@ -380,6 +442,16 @@ exports.updateApplicationStatus = async (req, res) => {
     application.lastUpdatedBy = req.user._id;
     application.lastUpdatedAt = new Date();
     await application.save();
+
+    if (application.email) {
+      const applicantName = [application.firstName, application.lastName].filter(Boolean).join(" ").trim();
+      emailService.sendStatusChangeNotification(
+        application.email,
+        applicantName || "Applicant",
+        job.title,
+        status
+      ).catch((err) => logger.error({ err: err?.message }, "[Email] Status change notification failed"));
+    }
 
     return res.status(200).json({
       success: true,

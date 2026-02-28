@@ -28,7 +28,7 @@ export default function Login() {
     try {
       const data = await loginUser(email, password);
       login(data.user);
-      navigate(isStaff(data.user?.role) ? "/recruiter/dashboard" : "/dashboard");
+      navigate(isStaff(data.user?.role) ? "/dashboard" : "/dashboard");
     } catch (err) {
       setError(err.message || "Something went wrong");
     } finally {
@@ -86,6 +86,9 @@ export default function Login() {
           <button type="submit" className="auth-submit-btn" disabled={loading}>
             {loading ? "Signing in…" : "SIGN IN"}
           </button>
+          <p className="auth-switch">
+            <Link to="/forgot-password">Forgot password?</Link>
+          </p>
           <p className="auth-switch">
             Don&apos;t have an account?{" "}
             <Link to="/signup">Sign up</Link>

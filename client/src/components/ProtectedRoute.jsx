@@ -12,7 +12,7 @@ export default function ProtectedRoute({ children, role, roles }) {
   if (allowedRoles.length > 0) {
     const hasAccess = allowedRoles.includes(user.role);
     if (!hasAccess) {
-      return <Navigate to={isStaff(user.role) ? "/recruiter/dashboard" : "/dashboard"} replace />;
+      return <Navigate to="/dashboard" replace />;
     }
   }
 

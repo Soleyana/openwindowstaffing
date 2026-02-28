@@ -1,8 +1,11 @@
 const User = require("../models/User");
 const Invite = require("../models/Invite");
+const PasswordResetToken = require("../models/PasswordResetToken");
 const jwt = require("jsonwebtoken");
 const { sanitizeErrorMessage } = require("../utils/sanitizeError");
-const { JWT_SECRET, JWT_EXPIRES_IN } = require("../config/env");
+const { validatePassword } = require("../utils/passwordPolicy");
+const { JWT_SECRET, JWT_EXPIRES_IN, CLIENT_URL } = require("../config/env");
+const emailService = require("../services/emailService");
 const { ROLES } = require("../constants/roles");
 const authService = require("../services/authService");
 
@@ -60,6 +63,11 @@ exports.register = async (req, res) => {
         success: false,
         message: "An account with this email already exists",
       });
+    }
+
+    const pwdCheck = validatePassword(password);
+    if (!pwdCheck.valid) {
+      return res.status(400).json({ success: false, message: pwdCheck.message });
     }
 
     const role = await authService.resolveRoleForRegistration();
@@ -162,11 +170,9 @@ exports.acceptInvite = async (req, res) => {
       });
     }
 
-    if (password.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: "Password must be at least 6 characters",
-      });
+    const pwdCheck = validatePassword(password);
+    if (!pwdCheck.valid) {
+      return res.status(400).json({ success: false, message: pwdCheck.message });
     }
 
     const invite = await Invite.verifyAndConsume(token);
@@ -223,6 +229,87 @@ exports.acceptInvite = async (req, res) => {
   }
 };
 
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const normalizedEmail = email?.trim()?.toLowerCase();
+    if (!normalizedEmail) {
+      return res.status(400).json({ success: false, message: "Email is required" });
+    }
+
+    const user = await User.findOne({ email: normalizedEmail });
+    if (!user) {
+      return res.status(200).json({
+        success: true,
+        message: "If that email exists, we sent a reset link. Check your inbox.",
+      });
+    }
+
+    const token = await PasswordResetToken.createToken(normalizedEmail);
+    const baseUrl = CLIENT_URL || "http://localhost:5173";
+    const resetUrl = `${baseUrl}/reset-password?token=${token}`;
+    emailService.sendPasswordResetLink(normalizedEmail, resetUrl).catch((err) =>
+      require("../utils/logger").error({ err: err?.message }, "[Email] Password reset link failed")
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "If that email exists, we sent a reset link. Check your inbox.",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: sanitizeErrorMessage(error, "Failed to send reset email"),
+    });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Token and new password are required",
+      });
+    }
+
+    const pwdCheck = validatePassword(newPassword);
+    if (!pwdCheck.valid) {
+      return res.status(400).json({ success: false, message: pwdCheck.message });
+    }
+
+    const resetDoc = await PasswordResetToken.verifyAndConsume(token);
+    if (!resetDoc) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired reset link. Request a new one.",
+      });
+    }
+
+    const user = await User.findOne({ email: resetDoc.email }).select("+password");
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "User not found. Request a new reset link.",
+      });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Password reset successfully. You can now sign in.",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: sanitizeErrorMessage(error, "Failed to reset password"),
+    });
+  }
+};
+
 exports.updateProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select("+password");
@@ -255,8 +342,9 @@ exports.updateProfile = async (req, res) => {
     }
 
     if (newPassword) {
-      if (newPassword.length < 6) {
-        return res.status(400).json({ success: false, message: "New password must be at least 6 characters" });
+      const pwdCheck = validatePassword(newPassword);
+      if (!pwdCheck.valid) {
+        return res.status(400).json({ success: false, message: pwdCheck.message });
       }
       if (!currentPassword) {
         return res.status(400).json({ success: false, message: "Current password is required to change password" });

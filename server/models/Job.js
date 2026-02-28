@@ -59,8 +59,14 @@ const jobSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    expiresAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );
+
+jobSchema.index({ expiresAt: 1 });
 
 module.exports = mongoose.model("Job", jobSchema);

@@ -12,6 +12,7 @@ export function isStaff(role) {
   return role === ROLES.RECRUITER || role === ROLES.OWNER;
 }
 
-export function isOwner(role) {
+export function isOwner(userOrRole) {
+  const role = userOrRole?.role ?? userOrRole;
   return role === ROLES.OWNER;
 }

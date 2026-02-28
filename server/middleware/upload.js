@@ -1,9 +1,10 @@
 const multer = require("multer");
 const path = require("path");
+const storageService = require("../services/storageService");
 
 const uploadsDir = path.join(__dirname, "..", "uploads");
 
-const storage = multer.diskStorage({
+const diskStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, uploadsDir);
   },
@@ -12,6 +13,10 @@ const storage = multer.diskStorage({
     cb(null, unique + path.extname(file.originalname));
   },
 });
+
+const memoryStorage = multer.memoryStorage();
+
+const storage = storageService.isCloudStorage() ? memoryStorage : diskStorage;
 
 const fileFilter = (req, file, cb) => {
   if (file.mimetype === "application/pdf") {

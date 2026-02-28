@@ -1,19 +1,34 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { BRAND } from "../config";
+import { trackEvent } from "../components/Analytics";
+import { submitContact } from "../api/contact";
 
 export default function Contact() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const mailto = `mailto:${BRAND.contactEmail}?subject=${encodeURIComponent(subject || `Contact from ${BRAND.companyName}`)}&body=${encodeURIComponent(
-      `Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`
-    )}`;
-    window.location.href = mailto;
+    setStatus(null);
+    setLoading(true);
+    try {
+      await submitContact({ name, email, subject, message });
+      trackEvent("contact_form_submit");
+      setStatus("success");
+      setName("");
+      setEmail("");
+      setSubject("");
+      setMessage("");
+    } catch {
+      setStatus("error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -87,7 +102,9 @@ export default function Contact() {
                   onChange={(e) => setMessage(e.target.value)}
                 />
               </div>
-              <button type="submit" className="content-cta-btn">Send Message</button>
+              <button type="submit" className="content-cta-btn" disabled={loading}>
+                {loading ? "Sending…" : "Send Message"}
+              </button>
             </form>
           </div>
         </div>

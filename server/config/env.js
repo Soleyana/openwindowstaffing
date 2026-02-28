@@ -22,6 +22,22 @@ const CORS_ORIGINS = process.env.CORS_ORIGINS
 
 const DEFAULT_COMPANY = process.env.DEFAULT_COMPANY || "Open Window Staffing";
 
+const PASSWORD_MIN_LENGTH = parseInt(process.env.PASSWORD_MIN_LENGTH, 10) || 8;
+
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const FROM_EMAIL = process.env.FROM_EMAIL || "onboarding@resend.dev";
+const COMPANY_NAME = process.env.DEFAULT_COMPANY || "Open Window Staffing";
+const CONTACT_EMAIL = process.env.CONTACT_EMAIL || process.env.FROM_EMAIL;
+
+/* Storage (S3/R2). When set, resumes upload to cloud instead of local disk. */
+const STORAGE_BUCKET = process.env.STORAGE_BUCKET;
+const STORAGE_REGION = process.env.STORAGE_REGION || "auto";
+const STORAGE_ACCESS_KEY = process.env.STORAGE_ACCESS_KEY;
+const STORAGE_SECRET_KEY = process.env.STORAGE_SECRET_KEY;
+const STORAGE_ENDPOINT = process.env.STORAGE_ENDPOINT;
+const STORAGE_PUBLIC_URL_BASE = process.env.STORAGE_PUBLIC_URL_BASE;
+const STORAGE_PREFIX = process.env.STORAGE_PREFIX || "resumes";
+
 module.exports = {
   isProduction,
   JWT_SECRET,
@@ -31,4 +47,16 @@ module.exports = {
   CLIENT_URL,
   CORS_ORIGINS,
   DEFAULT_COMPANY,
+  PASSWORD_MIN_LENGTH,
+  RESEND_API_KEY,
+  FROM_EMAIL,
+  COMPANY_NAME,
+  CONTACT_EMAIL,
+  STORAGE_BUCKET,
+  STORAGE_REGION,
+  STORAGE_ACCESS_KEY,
+  STORAGE_SECRET_KEY,
+  STORAGE_ENDPOINT,
+  STORAGE_PUBLIC_URL_BASE,
+  STORAGE_PREFIX,
 };

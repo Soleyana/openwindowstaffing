@@ -5,7 +5,7 @@ import { isStaff } from "../constants/roles";
 import { BRAND } from "../config";
 import { useToast } from "../context/ToastContext";
 import { getMyJobs, deleteJob } from "../api/jobs";
-import { getApplicationsForJob } from "../api/applications";
+import { getApplicationsForJob, exportApplicationsForJob } from "../api/applications";
 import StatusBadge from "../components/StatusBadge";
 
 export default function MyJobs() {
@@ -16,6 +16,7 @@ export default function MyJobs() {
   const [expandedJob, setExpandedJob] = useState(null);
   const [applicants, setApplicants] = useState([]);
   const [deletingId, setDeletingId] = useState(null);
+  const [exportingId, setExportingId] = useState(null);
   const toast = useToast();
 
   useEffect(() => {
@@ -64,6 +65,18 @@ export default function MyJobs() {
       setExpandedJob(jobId);
     } catch (err) {
       toast.show(err.response?.data?.message || err.message || "Failed to load applicants", "error");
+    }
+  };
+
+  const handleExport = async (jobId) => {
+    try {
+      setExportingId(jobId);
+      await exportApplicationsForJob(jobId);
+      toast.show("CSV downloaded");
+    } catch (err) {
+      toast.show(err.response?.data?.message || err.message || "Failed to export", "error");
+    } finally {
+      setExportingId(null);
     }
   };
 
@@ -124,6 +137,17 @@ export default function MyJobs() {
                   >
                     {expandedJob === job._id ? "Hide" : "View"} applicants
                   </button>
+                  {(expandedJob === job._id || (job.applicationCount || 0) > 0) && (
+                    <button
+                      type="button"
+                      className="my-job-card-export-btn"
+                      onClick={() => handleExport(job._id)}
+                      disabled={exportingId === job._id}
+                      title="Export applicants as CSV"
+                    >
+                      {exportingId === job._id ? "…" : "Export CSV"}
+                    </button>
+                  )}
                 </div>
               </div>
               <button

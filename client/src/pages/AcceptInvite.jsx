@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { acceptInvite } from "../api/auth";
+import { PASSWORD_RULES } from "../config";
 import { verifyInviteToken } from "../api/invites";
 import { ROLES } from "../constants/roles";
 
@@ -39,15 +40,19 @@ export default function AcceptInvite() {
       setError("Passwords do not match");
       return;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters");
+    if (password.length < 8) {
+      setError(PASSWORD_RULES);
+      return;
+    }
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+      setError(PASSWORD_RULES);
       return;
     }
     setLoading(true);
     try {
       const data = await acceptInvite(token, name, password);
       login(data.user);
-      navigate(isStaff(data.user?.role) ? "/recruiter/dashboard" : "/dashboard");
+      navigate(isStaff(data.user?.role) ? "/dashboard" : "/dashboard");
     } catch (err) {
       setError(err.message || "Failed to accept invite");
     } finally {
@@ -119,13 +124,14 @@ export default function AcceptInvite() {
             <input
               id="invite-password"
               type="password"
-              placeholder="At least 6 characters"
+              placeholder={PASSWORD_RULES}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={6}
+              minLength={8}
               autoComplete="new-password"
             />
+            <span className="auth-hint">{PASSWORD_RULES}</span>
           </div>
           <div className="auth-field-wrap">
             <label htmlFor="invite-confirm">Confirm password</label>
@@ -136,7 +142,7 @@ export default function AcceptInvite() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              minLength={6}
+              minLength={8}
               autoComplete="new-password"
             />
           </div>

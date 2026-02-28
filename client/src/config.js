@@ -8,6 +8,9 @@ const apiUrl = import.meta.env.VITE_API_URL;
 /** Base URL for static assets (e.g. uploads). In dev: "" (proxy). In prod: origin from VITE_API_URL. */
 export const API_BASE_URL = isDev ? "" : (apiUrl ? apiUrl.replace(/\/api\/?$/, "") : "");
 
+/** Password rules – shown on signup/change-password forms. Must match server policy. */
+export const PASSWORD_RULES = import.meta.env.VITE_PASSWORD_RULES || "At least 8 characters, including uppercase, lowercase, and a number";
+
 /** Company branding – configurable via env for white-label deployment */
 export const BRAND = {
   companyName: import.meta.env.VITE_COMPANY_NAME || "Open Window Staffing",

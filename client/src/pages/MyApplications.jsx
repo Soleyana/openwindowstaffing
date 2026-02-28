@@ -67,13 +67,23 @@ export default function MyApplications() {
             <div key={app._id} className="application-card">
               <div className="application-card-main">
                 <div className="application-card-header-row">
-                  <Link to={`/jobs/${app.job?._id}`} className="application-card-title">
-                    {app.job?.title}
-                  </Link>
+                  {app.job?._id ? (
+                    <Link to={`/jobs/${app.job._id}`} className="application-card-title">
+                      {app.job?.title}
+                    </Link>
+                  ) : (
+                    <span className="application-card-title application-card-title--unavailable">
+                      Job no longer available
+                    </span>
+                  )}
                   <StatusBadge status={app.status} />
                 </div>
                 <p className="application-card-meta">
-                  {app.job?.company} • {app.job?.location} • {app.job?.jobType}
+                  {app.job ? (
+                    <>{app.job.company} • {app.job.location} • {app.job.jobType}</>
+                  ) : (
+                    <em>This position has been removed</em>
+                  )}
                 </p>
               </div>
               <p className="application-card-date">

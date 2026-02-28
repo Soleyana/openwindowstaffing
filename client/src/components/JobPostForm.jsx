@@ -20,6 +20,7 @@ export default function JobPostForm() {
   const [companyEmail, setCompanyEmail] = useState("");
   const [companyContactPhone, setCompanyContactPhone] = useState("");
   const [payRate, setPayRate] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -38,6 +39,7 @@ export default function JobPostForm() {
         if (d.companyEmail) setCompanyEmail(d.companyEmail);
         if (d.companyContactPhone) setCompanyContactPhone(d.companyContactPhone);
         if (d.payRate) setPayRate(d.payRate);
+        if (d.expiresAt) setExpiresAt(d.expiresAt);
       } catch (_) {}
     }
   }, []);
@@ -80,6 +82,7 @@ export default function JobPostForm() {
         companyEmail: companyEmail || undefined,
         companyContactPhone: companyContactPhone || undefined,
         payRate: payRate || undefined,
+        expiresAt: expiresAt || undefined,
       });
       localStorage.removeItem("openwindow_job_draft");
       navigate("/jobs");
@@ -291,7 +294,7 @@ export default function JobPostForm() {
           type="button"
           className="job-post-draft-btn"
           onClick={() => {
-            const draft = { title, description, location, jobType, category, company, companyWebsite, companyEmail, companyContactPhone, payRate };
+            const draft = { title, description, location, jobType, category, company, companyWebsite, companyEmail, companyContactPhone, payRate, expiresAt };
             localStorage.setItem("openwindow_job_draft", JSON.stringify(draft));
             toast.show("Draft saved. You can continue editing later.");
           }}

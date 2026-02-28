@@ -23,7 +23,7 @@ export default function SignInModal({ isOpen, onClose }) {
       const data = await loginUser(email, password);
       login(data.user);
       onClose();
-      navigate(isStaff(data.user?.role) ? "/recruiter/dashboard" : "/dashboard");
+      navigate("/dashboard");
     } catch (err) {
       setError(err.message || "Login failed");
     } finally {

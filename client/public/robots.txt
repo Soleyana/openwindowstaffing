@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /account-settings
+Disallow: /recruiter
+Disallow: /applicant-pipeline
+Disallow: /post-job
+Disallow: /my-jobs
+Disallow: /my-applications
+
+Sitemap: /sitemap.xml

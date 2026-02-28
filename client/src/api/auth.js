@@ -64,3 +64,13 @@ export async function updateProfile(updates) {
   const { data } = await api.patch("auth/me", updates, { withCredentials: true });
   return data;
 }
+
+export async function forgotPassword(email) {
+  const { data } = await api.post("auth/forgot-password", { email });
+  return data;
+}
+
+export async function resetPassword(token, newPassword) {
+  const { data } = await api.post("auth/reset-password", { token, newPassword });
+  return data;
+}
