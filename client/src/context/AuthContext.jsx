@@ -1,25 +1,30 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { fetchMe, logoutUser } from "../api/auth";
+import { setAuthInitialized } from "../lib/authState";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
 
-  const loadUser = async () => {
+  const refreshMe = async () => {
+    setAuthLoading(true);
     try {
       const u = await fetchMe();
       setUser(u);
+      return u;
     } catch {
       setUser(null);
+      return null;
     } finally {
-      setLoading(false);
+      setAuthLoading(false);
+      setAuthInitialized(true);
     }
   };
 
   useEffect(() => {
-    loadUser();
+    refreshMe();
   }, []);
 
   const login = (userData) => {
@@ -31,15 +36,13 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
-  const refreshUser = () => loadUser();
-
   const value = {
     user,
-    loading,
+    authLoading,
     isLoggedIn: !!user,
     login,
     logout,
-    refreshUser,
+    refreshMe,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

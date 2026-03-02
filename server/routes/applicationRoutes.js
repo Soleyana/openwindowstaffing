@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const { requireAuth, requireApplicant, requireRecruiter } = require("../middleware/authMiddleware");
+const { applyLimiter } = require("../middleware/rateLimiter");
+const { maybeRateLimit } = require("../middleware/maybeRateLimit");
 const upload = require("../middleware/upload");
 const Job = require("../models/Job");
 const Application = require("../models/Application");
@@ -12,15 +14,20 @@ const {
   getMyApplicationStats,
   getApplicationsForJob,
   exportApplicationsForJob,
+  exportApplicationsCsv,
   checkApplied,
   updateApplicationStatus,
 } = require("../controllers/applicationController");
 const emailService = require("../services/emailService");
 const storageService = require("../services/storageService");
+const activityLogService = require("../services/activityLogService");
 const logger = require("../utils/logger");
 const { ROLES } = require("../constants/roles");
 const path = require("path");
 const fs = require("fs");
+
+/* CSV export - MUST be before any /:id or /:param routes to avoid shadowing */
+router.get("/export.csv", requireAuth, requireRecruiter, exportApplicationsCsv);
 
 /* Applicant routes */
 router.get("/my", requireAuth, requireApplicant, getMyApplications);
@@ -36,6 +43,7 @@ router.patch("/:id/status", requireAuth, requireRecruiter, updateApplicationStat
 /* Resume download: GET /api/applications/:id/resume (auth + access check) */
 router.get("/:id/resume", requireAuth, async (req, res) => {
   try {
+    const appId = req.params.id;
     const app = await Application.findById(req.params.id).populate("jobId", "createdBy");
     if (!app || !app.resumeUrl) {
       return res.status(404).json({ success: false, message: "Resume not found" });
@@ -53,6 +61,14 @@ router.get("/:id/resume", requireAuth, async (req, res) => {
     if (!((isApplicant && (applicantOwns || emailMatch)) || staffHasJob)) {
       return res.status(403).json({ success: false, message: "Not authorized to access this resume" });
     }
+
+    await activityLogService.logFromReq(req, {
+      targetType: "Document",
+      targetId: appId,
+      actionType: "downloaded",
+      message: "Resume downloaded",
+      metadata: { applicant: app.applicant?.toString() },
+    });
 
     const url = app.resumeUrl;
 
@@ -86,10 +102,10 @@ router.get("/:id/resume", requireAuth, async (req, res) => {
 });
 
 /* Simple apply: POST /api/applications with { jobId, coverMessage } */
-router.post("/", requireAuth, requireApplicant, createApplication);
+router.post("/", maybeRateLimit(applyLimiter), requireAuth, requireApplicant, createApplication);
 
 /* Full form with resume: POST /api/applications/submit (multipart/form-data) */
-router.post("/submit", requireAuth, requireApplicant, upload.single("resume"), async (req, res) => {
+router.post("/submit", maybeRateLimit(applyLimiter), requireAuth, requireApplicant, upload.single("resume"), async (req, res) => {
   try {
     const {
       jobId,
@@ -151,6 +167,8 @@ router.post("/submit", requireAuth, requireApplicant, upload.single("resume"), a
 
     const application = new Application({
       jobId,
+      companyId: job.companyId || null,
+      facilityId: job.facilityId || null,
       applicant: req.user._id,
       firstName: (firstName || "").trim(),
       lastName: (lastName || "").trim(),
@@ -180,6 +198,14 @@ router.post("/submit", requireAuth, requireApplicant, upload.single("resume"), a
     });
 
     await application.save();
+
+    await activityLogService.logFromReq(req, {
+      targetType: "Application",
+      targetId: application._id.toString(),
+      actionType: "submitted",
+      message: "Application submitted",
+      metadata: { jobId: job._id.toString(), applicant: req.user._id.toString() },
+    });
 
     const applicantEmail = application.email;
     if (applicantEmail) {

@@ -1,5 +1,6 @@
 const applicationService = require("../services/applicationService");
 const { sanitizeErrorMessage } = require("../utils/sanitizeError");
+const activityLogService = require("../services/activityLogService");
 
 exports.getAllApplications = async (req, res) => {
   try {
@@ -19,7 +20,7 @@ exports.getAllApplications = async (req, res) => {
 exports.updateStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, note } = req.body;
 
     if (!status) {
       return res.status(400).json({
@@ -28,7 +29,15 @@ exports.updateStatus = async (req, res) => {
       });
     }
 
-    const app = await applicationService.updateStatus(req.user, id, status);
+    const app = await applicationService.updateStatus(req.user, id, status, note);
+
+    await activityLogService.logFromReq(req, {
+      targetType: "Application",
+      targetId: id,
+      actionType: "status_changed",
+      message: `Status changed to ${status}`,
+      metadata: { newStatus: status },
+    });
 
     res.status(200).json({
       success: true,

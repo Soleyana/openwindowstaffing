@@ -1,16 +1,15 @@
 const User = require("../models/User");
 const Invite = require("../models/Invite");
+const RecruiterMembership = require("../models/RecruiterMembership");
 const PasswordResetToken = require("../models/PasswordResetToken");
 const jwt = require("jsonwebtoken");
 const { sanitizeErrorMessage } = require("../utils/sanitizeError");
 const { validatePassword } = require("../utils/passwordPolicy");
 const { JWT_SECRET, JWT_EXPIRES_IN, CLIENT_URL } = require("../config/env");
+const { COOKIE_NAME, COOKIE_MAX_AGE_MS, getAuthCookieOptions, getClearCookieOptions } = require("../utils/cookieOptions");
 const emailService = require("../services/emailService");
 const { ROLES } = require("../constants/roles");
 const authService = require("../services/authService");
-
-const COOKIE_NAME = "authToken";
-const COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 function generateJwt(userId, role) {
   return jwt.sign(
@@ -20,23 +19,17 @@ function generateJwt(userId, role) {
   );
 }
 
-function setAuthCookie(res, token) {
-  const isProduction = process.env.NODE_ENV === "production";
-  res.cookie(COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "strict" : "lax",
-    maxAge: COOKIE_MAX_AGE_MS,
-    path: "/",
-  });
+function setAuthCookie(res, token, req) {
+  res.cookie(COOKIE_NAME, token, getAuthCookieOptions(req));
 }
 
-function clearAuthCookie(res) {
-  res.clearCookie(COOKIE_NAME, { path: "/" });
+function clearAuthCookie(res, req) {
+  res.clearCookie(COOKIE_NAME, getClearCookieOptions(req));
 }
 
 function userResponse(user) {
   return {
+    _id: user._id,
     id: user._id,
     name: user.name,
     email: user.email,
@@ -79,7 +72,7 @@ exports.register = async (req, res) => {
     });
 
     const token = generateJwt(user._id, user.role);
-    setAuthCookie(res, token);
+    setAuthCookie(res, token, req);
 
     res.status(201).json({
       success: true,
@@ -124,7 +117,7 @@ exports.login = async (req, res) => {
     }
 
     const token = generateJwt(user._id, user.role);
-    setAuthCookie(res, token);
+    setAuthCookie(res, token, req);
 
     res.status(200).json({
       success: true,
@@ -139,16 +132,19 @@ exports.login = async (req, res) => {
 };
 
 exports.logout = (req, res) => {
-  clearAuthCookie(res);
+  clearAuthCookie(res, req);
   res.status(200).json({ success: true, message: "Logged out" });
 };
 
 exports.me = async (req, res) => {
   try {
+    if (!req.user) {
+      return res.status(200).json({ success: true, user: null });
+    }
     const user = await User.findById(req.user._id).select("-password");
     if (!user) {
-      clearAuthCookie(res);
-      return res.status(401).json({ success: false, message: "User not found" });
+      clearAuthCookie(res, req);
+      return res.status(200).json({ success: true, user: null });
     }
     res.status(200).json({ success: true, user: userResponse(user) });
   } catch (error) {
@@ -196,10 +192,24 @@ exports.acceptInvite = async (req, res) => {
     let user = await User.findOne({ email: normalizedEmail });
     if (user) {
       if (user.role === role) {
-        return res.status(400).json({
-          success: false,
-          message: "You already have an account with this access. Please sign in.",
-        });
+        if (invite.companyId) {
+          const existing = await RecruiterMembership.findOne({
+            userId: user._id,
+            companyId: invite.companyId,
+            status: "active",
+          });
+          if (existing) {
+            return res.status(400).json({
+              success: false,
+              message: "You already have access to this company. Please sign in.",
+            });
+          }
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: "You already have an account with this access. Please sign in.",
+          });
+        }
       }
       user.role = role;
       user.password = password;
@@ -213,8 +223,21 @@ exports.acceptInvite = async (req, res) => {
       });
     }
 
+    if (invite.companyId) {
+      await RecruiterMembership.findOneAndUpdate(
+        { userId: user._id, companyId: invite.companyId },
+        {
+          userId: user._id,
+          companyId: invite.companyId,
+          role: invite.role || ROLES.RECRUITER,
+          status: "active",
+        },
+        { upsert: true, new: true }
+      );
+    }
+
     const authToken = generateJwt(user._id, user.role);
-    setAuthCookie(res, authToken);
+    setAuthCookie(res, authToken, req);
 
     res.status(201).json({
       success: true,
@@ -248,7 +271,16 @@ exports.forgotPassword = async (req, res) => {
     const token = await PasswordResetToken.createToken(normalizedEmail);
     const baseUrl = CLIENT_URL || "http://localhost:5173";
     const resetUrl = `${baseUrl}/reset-password?token=${token}`;
-    emailService.sendPasswordResetLink(normalizedEmail, resetUrl).catch((err) =>
+    emailService.sendPasswordResetLink(normalizedEmail, resetUrl).then(() => {
+      const activityLogService = require("../services/activityLogService");
+      activityLogService.log({
+        req,
+        targetType: "User",
+        actionType: "password_reset_sent",
+        message: "Password reset link sent",
+        metadata: { email: normalizedEmail },
+      }).catch(() => {});
+    }).catch((err) =>
       require("../utils/logger").error({ err: err?.message }, "[Email] Password reset link failed")
     );
 
@@ -360,7 +392,7 @@ exports.updateProfile = async (req, res) => {
 
     const updated = await User.findById(user._id);
     const token = generateJwt(updated._id, updated.role);
-    setAuthCookie(res, token);
+    setAuthCookie(res, token, req);
 
     res.status(200).json({
       success: true,

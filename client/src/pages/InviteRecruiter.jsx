@@ -1,18 +1,46 @@
 import { useState, useEffect } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { isOwner } from "../constants/roles";
 import { useToast } from "../context/ToastContext";
 import { createInvite, listInvites, revokeInvite } from "../api/invites";
+import { getMyCompanies, createCompany } from "../api/companies";
 
 export default function InviteRecruiter() {
   const { user } = useAuth();
+  const [companies, setCompanies] = useState([]);
   const [invites, setInvites] = useState([]);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteCompanyId, setInviteCompanyId] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteSuccess, setInviteSuccess] = useState(null);
   const [revokingId, setRevokingId] = useState(null);
+  const [newCompanyName, setNewCompanyName] = useState("");
+  const [creatingCompany, setCreatingCompany] = useState(false);
   const toast = useToast();
+
+  const loadCompanies = () => {
+    if (!isOwner(user)) return;
+    getMyCompanies()
+      .then((res) => {
+        const list = res.data || [];
+        setCompanies(list);
+        if (list.length > 0 && !inviteCompanyId) setInviteCompanyId(list[0]._id);
+      })
+      .catch(() => setCompanies([]));
+  };
+
+  useEffect(() => {
+    if (isOwner(user)) {
+      getMyCompanies()
+        .then((res) => {
+          const list = res.data || [];
+          setCompanies(list);
+          if (list.length > 0 && !inviteCompanyId) setInviteCompanyId(list[0]._id);
+        })
+        .catch(() => setCompanies([]));
+    }
+  }, [user]);
 
   const loadInvites = () => {
     if (!user || !isOwner(user)) return;
@@ -28,10 +56,15 @@ export default function InviteRecruiter() {
   const handleInvite = async (e) => {
     e.preventDefault();
     if (!inviteEmail.trim() || !isOwner(user)) return;
+    const companyId = inviteCompanyId || (companies.length === 1 ? companies[0]._id : "");
+    if (!companyId) {
+      toast.show("Select a company first. Create one under Companies if needed.", "error");
+      return;
+    }
     setInviteLoading(true);
     setInviteSuccess(null);
     try {
-      const res = await createInvite(inviteEmail.trim());
+      const res = await createInvite(inviteEmail.trim(), companyId, "recruiter");
       setInviteSuccess(res.data);
       setInviteEmail("");
       loadInvites();
@@ -69,7 +102,54 @@ export default function InviteRecruiter() {
         Give someone access to post jobs. They&apos;ll receive a signup link—only people you invite can become recruiters.
       </p>
 
+      {companies.length === 0 && (
+        <div style={{ marginBottom: "1.5rem", padding: "1rem", background: "#fef3c7", borderRadius: "8px", color: "#92400e" }}>
+          <p style={{ margin: "0 0 0.75rem" }}>Create a company first to invite recruiters.</p>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!newCompanyName.trim()) return;
+              setCreatingCompany(true);
+              try {
+                await createCompany({ name: newCompanyName.trim() });
+                toast.show("Company created");
+                setNewCompanyName("");
+                loadCompanies();
+              } catch (err) {
+                toast.show(err.response?.data?.message || "Failed to create company", "error");
+              } finally {
+                setCreatingCompany(false);
+              }
+            }}
+            style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
+          >
+            <input
+              type="text"
+              placeholder="Company name"
+              value={newCompanyName}
+              onChange={(e) => setNewCompanyName(e.target.value)}
+              style={{ padding: "0.5rem 0.75rem", fontSize: "1rem", border: "1px solid #e2e8f0", borderRadius: "6px", minWidth: "200px" }}
+            />
+            <button type="submit" disabled={creatingCompany || !newCompanyName.trim()} style={{ padding: "0.5rem 1rem", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "500" }}>
+              {creatingCompany ? "Creating…" : "Create Company"}
+            </button>
+          </form>
+        </div>
+      )}
       <form onSubmit={handleInvite} style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center", marginBottom: "1.5rem" }}>
+        {companies.length > 0 && (
+          <select
+            value={inviteCompanyId}
+            onChange={(e) => setInviteCompanyId(e.target.value)}
+            required
+            style={{ padding: "0.5rem 0.75rem", fontSize: "1rem", border: "1px solid #e2e8f0", borderRadius: "6px", minWidth: "180px" }}
+          >
+            <option value="">Select company</option>
+            {companies.map((c) => (
+              <option key={c._id} value={c._id}>{c.name}</option>
+            ))}
+          </select>
+        )}
         <input
           type="email"
           placeholder="email@example.com"
@@ -77,7 +157,7 @@ export default function InviteRecruiter() {
           onChange={(e) => setInviteEmail(e.target.value)}
           style={{ padding: "0.5rem 0.75rem", fontSize: "1rem", border: "1px solid #e2e8f0", borderRadius: "6px", minWidth: "200px" }}
         />
-        <button type="submit" disabled={inviteLoading} style={{ padding: "0.5rem 1rem", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "500" }}>
+        <button type="submit" disabled={inviteLoading || companies.length === 0} style={{ padding: "0.5rem 1rem", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontWeight: "500" }}>
           {inviteLoading ? "Creating…" : "Send Invite"}
         </button>
       </form>

@@ -10,12 +10,25 @@ const recruiterNoteSchema = new mongoose.Schema(
   { _id: true }
 );
 
+const statusHistorySchema = new mongoose.Schema(
+  {
+    from: { type: String },
+    to: { type: String, required: true },
+    changedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    changedAt: { type: Date, default: Date.now },
+    note: { type: String },
+  },
+  { _id: true }
+);
+
 const applicationSchema = new mongoose.Schema({
   jobId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Job",
     required: true,
   },
+  companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company" },
+  facilityId: { type: mongoose.Schema.Types.ObjectId, ref: "Facility" },
   applicant: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
@@ -63,7 +76,15 @@ const applicationSchema = new mongoose.Schema({
   },
   lastUpdatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   lastUpdatedAt: { type: Date },
+  statusHistory: {
+    type: [statusHistorySchema],
+    default: [],
+    select: false,
+  },
   createdAt: { type: Date, default: Date.now },
 });
+
+applicationSchema.index({ companyId: 1 });
+applicationSchema.index({ facilityId: 1 });
 
 module.exports = mongoose.model("Application", applicationSchema);

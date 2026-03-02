@@ -1,93 +1,198 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { getMyJobs } from "../api/jobs";
-import { getAllApplications } from "../api/applicationApi";
+import { getListingsReport, exportListingsReport } from "../api/reports";
+import { getMyCompanies } from "../api/companies";
+import { useToast } from "../context/ToastContext";
 
 export default function ListingReports() {
   const { user } = useAuth();
-  const [jobs, setJobs] = useState([]);
-  const [applications, setApplications] = useState([]);
+  const toast = useToast();
+  const [data, setData] = useState(null);
+  const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [filters, setFilters] = useState({
+    from: "",
+    to: "",
+    companyId: "",
+    status: "",
+  });
 
   useEffect(() => {
+    if (!user) return;
     let cancelled = false;
-    Promise.all([getMyJobs(), getAllApplications()])
-      .then(([jobsRes, appsRes]) => {
-        if (cancelled) return;
-        setJobs(jobsRes.data || []);
-        setApplications(appsRes?.data || []);
+    getMyCompanies()
+      .then((res) => {
+        if (!cancelled) setCompanies(res?.data || res || []);
       })
       .catch(() => {
+        if (!cancelled) setCompanies([]);
+      });
+    return () => { cancelled = true; };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    setLoading(true);
+    const q = {
+      ...(filters.from && { from: filters.from }),
+      ...(filters.to && { to: filters.to }),
+      ...(filters.companyId && { companyId: filters.companyId }),
+      ...(filters.status && { status: filters.status }),
+    };
+    getListingsReport(q)
+      .then((res) => {
+        if (!cancelled) setData(res?.data || res);
+      })
+      .catch((err) => {
         if (!cancelled) {
-          setJobs([]);
-          setApplications([]);
+          toast.show(err.response?.data?.message || "Failed to load report", "error");
+          setData(null);
         }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [user]);
+  }, [user, filters.from, filters.to, filters.companyId, filters.status]);
 
-  const appsByJob = {};
-  for (const app of applications) {
-    const jobId = app.jobId?._id || app.jobId;
-    if (jobId) {
-      appsByJob[jobId] = (appsByJob[jobId] || 0) + 1;
+  const handleExport = async () => {
+    try {
+      setExporting(true);
+      const q = {
+        ...(filters.from && { from: filters.from }),
+        ...(filters.to && { to: filters.to }),
+        ...(filters.companyId && { companyId: filters.companyId }),
+        ...(filters.status && { status: filters.status }),
+      };
+      await exportListingsReport(q);
+      toast.show("Report downloaded");
+    } catch (err) {
+      toast.show(err.message || "Export failed", "error");
+    } finally {
+      setExporting(false);
     }
-  }
+  };
 
-  const totalApps = applications.length;
-  const totalJobs = jobs.length;
+  const kpis = data?.kpis || {};
+  const rows = data?.rows || [];
 
   return (
-    <div className="dashboard-page">
+    <div className="dashboard-page listing-reports-page">
       <h1 className="dashboard-title">Listing Reports</h1>
-      <p className="dashboard-subtitle" style={{ margin: "0.25rem 0 1.5rem", color: "#64748b" }}>
+      <p className="dashboard-subtitle" style={{ margin: "0.25rem 0 1rem", color: "#64748b" }}>
         Performance overview of your job listings
       </p>
+
+      <div className="listing-reports-filters">
+        <label>
+          <span>From</span>
+          <input
+            type="date"
+            value={filters.from}
+            onChange={(e) => setFilters((f) => ({ ...f, from: e.target.value }))}
+          />
+        </label>
+        <label>
+          <span>To</span>
+          <input
+            type="date"
+            value={filters.to}
+            onChange={(e) => setFilters((f) => ({ ...f, to: e.target.value }))}
+          />
+        </label>
+        {companies?.length > 1 && (
+          <label>
+            <span>Company</span>
+            <select
+              value={filters.companyId}
+              onChange={(e) => setFilters((f) => ({ ...f, companyId: e.target.value }))}
+            >
+              <option value="">All</option>
+              {companies.map((c) => (
+                <option key={c._id} value={c._id}>{c.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label>
+          <span>Status</span>
+          <select
+            value={filters.status}
+            onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
+          >
+            <option value="">All</option>
+            <option value="open">Open</option>
+            <option value="closed">Closed</option>
+            <option value="expired">Expired</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          className="listing-reports-export-btn"
+          onClick={handleExport}
+          disabled={exporting}
+        >
+          {exporting ? "Exporting…" : "Export CSV"}
+        </button>
+      </div>
 
       {loading && <p className="dashboard-placeholder">Loading…</p>}
       {!loading && (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
-            <div style={{ padding: "1.25rem", background: "#f0f9ff", borderRadius: "8px", border: "1px solid #bae6fd" }}>
-              <div style={{ fontSize: "0.9rem", color: "#0369a1", marginBottom: "0.25rem" }}>Total Listings</div>
-              <div style={{ fontSize: "1.75rem", fontWeight: 700 }}>{totalJobs}</div>
+          <div className="listing-reports-kpis">
+            <div className="listing-kpi-card">
+              <div className="listing-kpi-label">Total Listings</div>
+              <div className="listing-kpi-value">{kpis.totalListings ?? 0}</div>
             </div>
-            <div style={{ padding: "1.25rem", background: "#ecfdf5", borderRadius: "8px", border: "1px solid #a7f3d0" }}>
-              <div style={{ fontSize: "0.9rem", color: "#047857", marginBottom: "0.25rem" }}>Total Applications</div>
-              <div style={{ fontSize: "1.75rem", fontWeight: 700 }}>{totalApps}</div>
+            <div className="listing-kpi-card">
+              <div className="listing-kpi-label">Active</div>
+              <div className="listing-kpi-value">{kpis.activeListings ?? 0}</div>
             </div>
-            <div style={{ padding: "1.25rem", background: "#faf5ff", borderRadius: "8px", border: "1px solid #e9d5ff" }}>
-              <div style={{ fontSize: "0.9rem", color: "#7c3aed", marginBottom: "0.25rem" }}>Avg per Listing</div>
-              <div style={{ fontSize: "1.75rem", fontWeight: 700 }}>{totalJobs > 0 ? (totalApps / totalJobs).toFixed(1) : "0"}</div>
+            <div className="listing-kpi-card">
+              <div className="listing-kpi-label">Expired</div>
+              <div className="listing-kpi-value">{kpis.expiredListings ?? 0}</div>
+            </div>
+            <div className="listing-kpi-card">
+              <div className="listing-kpi-label">Applications</div>
+              <div className="listing-kpi-value">{kpis.totalApplications ?? 0}</div>
+            </div>
+            <div className="listing-kpi-card">
+              <div className="listing-kpi-label">Conversion Rate</div>
+              <div className="listing-kpi-value">{kpis.conversionRate ?? "0"}%</div>
             </div>
           </div>
 
-          {jobs.length === 0 ? (
+          {rows.length === 0 ? (
             <p className="dashboard-placeholder">
-              No job listings yet. <Link to="/post-job">Post a job</Link> to see reports.
+              No job listings match. <Link to="/post-job">Post a job</Link> to see reports.
             </p>
           ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.95rem" }}>
+            <div className="listing-reports-table-wrap">
+              <table className="listing-reports-table">
                 <thead>
-                  <tr style={{ borderBottom: "2px solid #e2e8f0", textAlign: "left" }}>
-                    <th style={{ padding: "0.75rem 1rem" }}>Job Title</th>
-                    <th style={{ padding: "0.75rem 1rem" }}>Company</th>
-                    <th style={{ padding: "0.75rem 1rem" }}>Applications</th>
-                    <th style={{ padding: "0.75rem 1rem" }}>Actions</th>
+                  <tr>
+                    <th>Job Title</th>
+                    <th>Company</th>
+                    <th>Status</th>
+                    <th>Applications</th>
+                    <th>Created</th>
+                    <th>Created By</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {jobs.map((job) => (
-                    <tr key={job._id} style={{ borderBottom: "1px solid #e2e8f0" }}>
-                      <td style={{ padding: "0.75rem 1rem" }}>{job.title}</td>
-                      <td style={{ padding: "0.75rem 1rem" }}>{job.company}</td>
-                      <td style={{ padding: "0.75rem 1rem" }}>{appsByJob[job._id] || 0}</td>
-                      <td style={{ padding: "0.75rem 1rem" }}>
+                  {rows.map((row) => (
+                    <tr key={row._id}>
+                      <td>{row.title}</td>
+                      <td>{row.company}</td>
+                      <td><span className={`status-badge status-${row.status}`}>{row.status}</span></td>
+                      <td>{row.applicationsCount}</td>
+                      <td>{row.createdAt ? new Date(row.createdAt).toLocaleDateString() : "—"}</td>
+                      <td>{row.createdBy}</td>
+                      <td>
                         <Link to="/applicant-pipeline" style={{ color: "var(--primary)", textDecoration: "none" }}>
                           View applicants
                         </Link>

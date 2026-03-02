@@ -23,6 +23,18 @@ body,
 :root {
   --primary: #0077b6;
   --primary-dark: #023e8a;
+  --secondary: #64748b;
+  --secondary-hover: #475569;
+  --success: #166534;
+  --success-bg: #dcfce7;
+  --warning: #c2410c;
+  --warning-bg: #fed7aa;
+  --danger: #991b1b;
+  --danger-bg: #fee2e2;
+  --muted: #94a3b8;
+  --muted-border: #e2e8f0;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.1);
   --accent: #00b4d8;
   --cta-blue: #0077b6;
   --cta-blue-hover: #023e8a;

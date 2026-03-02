@@ -1,5 +1,6 @@
 const Job = require("../models/Job");
 const { sanitizeErrorMessage } = require("../utils/sanitizeError");
+const activityLogService = require("../services/activityLogService");
 
 function escapeRegex(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -50,6 +51,14 @@ exports.createJob = async (req, res) => {
     }
 
     const job = await Job.create(jobData);
+
+    await activityLogService.logFromReq(req, {
+      targetType: "Job",
+      targetId: job._id.toString(),
+      actionType: "created",
+      message: `Job ${job.title} created`,
+      metadata: { companyId: job.companyId?.toString() },
+    });
 
     const populated = await Job.findById(job._id).populate("createdBy", "name email");
 
@@ -188,6 +197,15 @@ exports.updateJob = async (req, res) => {
       }
     }
     await job.save();
+
+    await activityLogService.logFromReq(req, {
+      targetType: "Job",
+      targetId: job._id.toString(),
+      actionType: "updated",
+      message: `Job ${job.title} updated`,
+      metadata: { companyId: job.companyId?.toString() },
+    });
+
     const populated = await Job.findById(job._id).populate("createdBy", "name email");
     return res.status(200).json({
       success: true,
@@ -224,6 +242,14 @@ exports.deleteJob = async (req, res) => {
         message: "Not authorized to delete this job",
       });
     }
+
+    await activityLogService.logFromReq(req, {
+      targetType: "Job",
+      targetId: req.params.id,
+      actionType: "deleted",
+      message: `Job ${job.title} deleted`,
+      metadata: { companyId: job.companyId?.toString() },
+    });
 
     await Job.findByIdAndDelete(req.params.id);
 

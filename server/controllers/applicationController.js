@@ -1,8 +1,10 @@
 const Application = require("../models/Application");
 const Job = require("../models/Job");
 const logger = require("../utils/logger");
+const { hasCompanyAccess, getAccessibleCompanyIds } = require("../services/companyAccessService");
 const { sanitizeErrorMessage } = require("../utils/sanitizeError");
 const emailService = require("../services/emailService");
+const activityLogService = require("../services/activityLogService");
 const { ROLES, STAFF_ROLES } = require("../constants/roles");
 const { DEFAULT_STATUS } = require("../constants/applicationStatuses");
 const { toApplicantStatus } = require("../services/applicationService");
@@ -191,13 +193,23 @@ exports.createApplication = async (req, res) => {
 
     const application = await Application.create({
       jobId,
+      companyId: job.companyId || null,
+      facilityId: job.facilityId || null,
       applicant: applicantId,
       firstName,
       lastName,
       email: req.user.email || "",
       phone: "—",
       message: coverMessage || "",
-      status: "pending",
+      status: "applied",
+    });
+
+    await activityLogService.logFromReq(req, {
+      targetType: "Application",
+      targetId: application._id.toString(),
+      actionType: "submitted",
+      message: "Application submitted",
+      metadata: { jobId: job._id.toString(), applicant: applicantId.toString() },
     });
 
     const populated = await Application.findById(application._id)
@@ -268,6 +280,105 @@ function escapeCsv(val) {
   }
   return s;
 }
+
+const CSV_MAX_ROWS = 10000;
+
+/**
+ * GET /api/applications/export.csv
+ * Query: companyId, jobId, status, from, to
+ * Requires recruiter/owner. companyId optional; when provided, verifies company access.
+ */
+exports.exportApplicationsCsv = async (req, res) => {
+  try {
+    const { companyId, jobId, status, from, to } = req.query;
+    let jobIds = null;
+    let companyIds = null;
+
+    if (companyId) {
+      const { allowed } = await hasCompanyAccess(req.user._id.toString(), companyId);
+      if (!allowed) {
+        return res.status(403).json({ success: false, message: "Access denied. You do not have access to this company." });
+      }
+      const jobs = await Job.find({ companyId }).select("_id").lean();
+      jobIds = jobs.map((j) => j._id);
+      if (jobIds.length === 0) {
+        jobIds = [];
+      }
+    } else {
+      companyIds = await getAccessibleCompanyIds(req.user._id.toString());
+      const isOwner = req.user.role === ROLES.OWNER;
+      const jobQuery = isOwner
+        ? {}
+        : companyIds.length > 0
+          ? { $or: [{ createdBy: req.user._id }, { companyId: { $in: companyIds } }] }
+          : { createdBy: req.user._id };
+      const jobs = await Job.find(jobQuery).select("_id").lean();
+      jobIds = jobs.map((j) => j._id);
+    }
+
+    const query = { jobId: { $in: jobIds } };
+    if (jobId) query.jobId = jobId;
+    if (status) query.status = status;
+    if (from || to) {
+      query.createdAt = {};
+      if (from) query.createdAt.$gte = new Date(from);
+      if (to) {
+        const toDate = new Date(to);
+        toDate.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = toDate;
+      }
+    }
+
+    const applications = await Application.find(query)
+      .select("+recruiterNotes")
+      .populate("jobId", "title location")
+      .populate("applicant", "name email")
+      .sort({ createdAt: -1 })
+      .limit(CSV_MAX_ROWS)
+      .lean();
+
+    const headers = [
+      "Applicant Name",
+      "Email",
+      "Phone",
+      "Job Title",
+      "Location",
+      "Status",
+      "Applied At",
+      "Last Status Change",
+      "Recruiter Notes",
+    ];
+    const rows = applications.map((app) => {
+      const name = app.applicant?.name || [app.firstName, app.lastName].filter(Boolean).join(" ") || "—";
+      const email = app.applicant?.email || app.email || "—";
+      const phone = app.phone || "—";
+      const jobTitle = app.jobId?.title || "—";
+      const location = app.jobId?.location || "—";
+      const appliedAt = app.createdAt ? new Date(app.createdAt).toISOString().slice(0, 19).replace("T", " ") : "—";
+      const lastChange = app.lastUpdatedAt ? new Date(app.lastUpdatedAt).toISOString().slice(0, 19).replace("T", " ") : "—";
+      const notes = (app.recruiterNotes || [])
+        .map((n) => n.text)
+        .filter(Boolean)
+        .join("; ") || "—";
+      return [name, email, phone, jobTitle, location, app.status || "—", appliedAt, lastChange, notes];
+    });
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", 'attachment; filename="applications.csv"');
+    res.write("\uFEFF");
+    res.write(headers.map(escapeCsv).join(",") + "\n");
+    for (const row of rows) {
+      res.write(row.map(escapeCsv).join(",") + "\n");
+    }
+    res.end();
+  } catch (error) {
+    logger.error({ err: error.message }, "CSV export error");
+    res.status(500).json({
+      success: false,
+      message: sanitizeErrorMessage(error, "Failed to export applications"),
+    });
+  }
+};
 
 exports.exportApplicationsForJob = async (req, res) => {
   try {

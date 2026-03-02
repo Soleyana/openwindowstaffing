@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   DndContext,
   DragOverlay,
@@ -15,13 +16,23 @@ import {
   updateRecruiterApplicationStatus,
   addRecruiterNote,
 } from "../api/recruiterApplications";
+import { exportApplicationsCsv } from "../api/applications";
+import { createOrFindThreadByJobOrApplication } from "../api/messages";
+import { getComplianceBatch } from "../api/compliance";
 import {
   PIPELINE_STATUSES,
   PIPELINE_COLUMN_LABELS,
 } from "../constants/applicationStatuses";
 import { API_BASE_URL } from "../config";
 
-function ApplicantCardInner({ app, onStatusChange, onSelect }) {
+const COMPLIANCE_BADGE = {
+  cleared: "badge-compliance-cleared",
+  missing: "badge-compliance-missing",
+  expiring: "badge-compliance-expiring",
+  blocked: "badge-compliance-blocked",
+};
+
+function ApplicantCardInner({ app, onStatusChange, onSelect, complianceStatus }) {
   const [open, setOpen] = useState(false);
   const applicantName = [app.firstName, app.lastName].filter(Boolean).join(" ") || app.email || "—";
 
@@ -61,6 +72,11 @@ function ApplicantCardInner({ app, onStatusChange, onSelect }) {
         </div>
       </div>
       <div className="pipeline-card-job">{app.jobTitle || app.job?.title || "—"}</div>
+      {complianceStatus && (
+        <span className={`badge ${COMPLIANCE_BADGE[complianceStatus] || ""}`} style={{ fontSize: "0.7rem", marginTop: "0.25rem", textTransform: "capitalize" }}>
+          {complianceStatus}
+        </span>
+      )}
       <div className="pipeline-card-date">
         Applied {app.createdAt ? new Date(app.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
       </div>
@@ -68,19 +84,19 @@ function ApplicantCardInner({ app, onStatusChange, onSelect }) {
   );
 }
 
-function DraggableApplicantCard({ app, onStatusChange, onSelect }) {
+function DraggableApplicantCard({ app, onStatusChange, onSelect, complianceStatus }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: app._id,
     data: { app },
   });
   return (
     <div ref={setNodeRef} {...listeners} {...attributes} className={`pipeline-card-wrapper ${isDragging ? "pipeline-card-dragging" : ""}`}>
-      <ApplicantCardInner app={app} onStatusChange={onStatusChange} onSelect={onSelect} />
+      <ApplicantCardInner app={app} onStatusChange={onStatusChange} onSelect={onSelect} complianceStatus={complianceStatus} />
     </div>
   );
 }
 
-function DroppableColumn({ status, applications, onStatusChange, onSelect }) {
+function DroppableColumn({ status, applications, onStatusChange, onSelect, complianceMap }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   return (
     <div
@@ -95,6 +111,7 @@ function DroppableColumn({ status, applications, onStatusChange, onSelect }) {
             app={app}
             onStatusChange={onStatusChange}
             onSelect={onSelect}
+            complianceStatus={complianceMap?.[(app.applicant?._id || app.applicant)?.toString?.()]?.status}
           />
         ))}
         {applications.length === 0 && (
@@ -106,13 +123,36 @@ function DroppableColumn({ status, applications, onStatusChange, onSelect }) {
 }
 
 function ApplicantDrawer({ app, onClose, onStatusChange, onNoteAdded }) {
+  const navigate = useNavigate();
+  const toast = useToast();
   const [noteText, setNoteText] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const toast = useToast();
+  const [messageLoading, setMessageLoading] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   if (!app) return null;
 
   const applicantName = [app.firstName, app.lastName].filter(Boolean).join(" ") || app.email || "—";
+
+  const handleMessageCandidate = async () => {
+    try {
+      setMessageLoading(true);
+      const threadId = await createOrFindThreadByJobOrApplication({ applicationId: app._id });
+      if (threadId) {
+        onClose();
+        navigate(`/inbox?thread=${threadId}`);
+      }
+    } catch (err) {
+      toast.show(err.response?.data?.message || "Failed to open message", "error");
+    } finally {
+      setMessageLoading(false);
+    }
+  };
 
   const handleAddNote = async (e) => {
     e.preventDefault();
@@ -143,6 +183,14 @@ function ApplicantDrawer({ app, onClose, onStatusChange, onNoteAdded }) {
             <h3>Contact</h3>
             <p><strong>Email:</strong> {app.email || "—"}</p>
             <p><strong>Phone:</strong> {app.phone || "—"}</p>
+            <button
+              type="button"
+              className="pipeline-drawer-message-btn"
+              onClick={handleMessageCandidate}
+              disabled={messageLoading}
+            >
+              {messageLoading ? "Opening…" : "Message Candidate"}
+            </button>
           </section>
           <section className="pipeline-drawer-section">
             <h3>Job</h3>
@@ -206,7 +254,9 @@ export default function ApplicantPipeline() {
   const { user } = useAuth();
   const toast = useToast();
   const [data, setData] = useState({ byStatus: {}, applications: [] });
+  const [complianceMap, setComplianceMap] = useState({});
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [selectedApp, setSelectedApp] = useState(null);
   const [activeApp, setActiveApp] = useState(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
@@ -226,8 +276,23 @@ export default function ApplicantPipeline() {
           if (!Array.isArray(byStatus[s])) byStatus[s] = [];
         });
         setData({ ...result, byStatus });
+
+        const allApps = result.applications || Object.values(byStatus || {}).flat();
+        const candidateIds = [...new Set(allApps.map((a) => (a.applicant?._id || a.applicant)?.toString?.()).filter(Boolean))];
+        const companyId = allApps[0]?.companyId || allApps[0]?.jobId?.companyId || allApps[0]?.job?.companyId;
+        if (companyId && candidateIds.length > 0) {
+          try {
+            const map = await getComplianceBatch(companyId, candidateIds);
+            setComplianceMap(map || {});
+          } catch {
+            setComplianceMap({});
+          }
+        } else {
+          setComplianceMap({});
+        }
       } else {
         setData({ byStatus: {}, applications: [] });
+        setComplianceMap({});
       }
     } catch (err) {
       setData({ byStatus: {}, applications: [] });
@@ -281,6 +346,18 @@ export default function ApplicantPipeline() {
     }
   };
 
+  const handleExportCsv = async () => {
+    try {
+      setExporting(true);
+      await exportApplicationsCsv({});
+      toast.show("CSV downloaded");
+    } catch (err) {
+      toast.show(err.message || "Failed to export", "error");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="pipeline-page">
@@ -292,8 +369,21 @@ export default function ApplicantPipeline() {
 
   return (
     <div className="pipeline-page">
-      <h1 className="pipeline-title">Applicant Pipeline</h1>
-      <p className="pipeline-subtitle">Manage applicants across jobs. Drag cards or use the menu to move between stages.</p>
+      <div className="pipeline-header-row">
+        <div>
+          <h1 className="pipeline-title">Applicant Pipeline</h1>
+          <p className="pipeline-subtitle">Manage applicants across jobs. Drag cards or use the menu to move between stages.</p>
+        </div>
+        <button
+          type="button"
+          className="pipeline-export-btn"
+          onClick={handleExportCsv}
+          disabled={exporting}
+          title="Export all applicants as CSV"
+        >
+          {exporting ? "Exporting…" : "Export CSV"}
+        </button>
+      </div>
 
       <DndContext
         sensors={sensors}
@@ -315,7 +405,14 @@ export default function ApplicantPipeline() {
       >
         <div className="pipeline-board">
           {PIPELINE_STATUSES.map((status) => (
-            <DroppableColumn key={status} status={status} applications={data.byStatus?.[status] || []} onStatusChange={handleStatusChange} onSelect={setSelectedApp} />
+            <DroppableColumn
+              key={status}
+              status={status}
+              applications={data.byStatus?.[status] || []}
+              onStatusChange={handleStatusChange}
+              onSelect={setSelectedApp}
+              complianceMap={complianceMap}
+            />
           ))}
         </div>
         <DragOverlay>

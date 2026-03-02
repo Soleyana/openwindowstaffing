@@ -1,13 +1,18 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getMyApplications } from "../api/applications";
+import { createOrFindThreadByJobOrApplication } from "../api/messages";
 import { ROLES } from "../constants/roles";
 import StatusBadge from "../components/StatusBadge";
+import { useToast } from "../context/ToastContext";
 
 export default function MyApplications() {
   const { isLoggedIn, user } = useAuth();
+  const navigate = useNavigate();
+  const toast = useToast();
   const [applications, setApplications] = useState([]);
+  const [messagingId, setMessagingId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -86,9 +91,32 @@ export default function MyApplications() {
                   )}
                 </p>
               </div>
-              <p className="application-card-date">
-                Applied {app.createdAt ? new Date(app.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : ""}
-              </p>
+              <div className="application-card-actions">
+                <p className="application-card-date">
+                  Applied {app.createdAt ? new Date(app.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : ""}
+                </p>
+                {app._id && (
+                  <button
+                    type="button"
+                    className="application-card-message-btn"
+                    disabled={messagingId === app._id}
+                    onClick={async () => {
+                      setMessagingId(app._id);
+                      try {
+                        const threadId = await createOrFindThreadByJobOrApplication({ applicationId: app._id });
+                        if (threadId) navigate(`/inbox?thread=${threadId}`);
+                        else toast.show("Could not start conversation", "error");
+                      } catch (err) {
+                        toast.show(err.response?.data?.message || err.message || "Could not start message", "error");
+                      } finally {
+                        setMessagingId(null);
+                      }
+                    }}
+                  >
+                    {messagingId === app._id ? "Opening…" : "Message Recruiter"}
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>

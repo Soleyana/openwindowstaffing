@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useEffect } from "react";
 
 const ToastContext = createContext(null);
 
@@ -12,6 +12,14 @@ export function ToastProvider({ children }) {
   }, []);
 
   const hide = useCallback(() => setToast(null), []);
+
+  useEffect(() => {
+    const handler = (e) => {
+      show(e.detail?.message || "Something went wrong", "error");
+    };
+    window.addEventListener("api-error", handler);
+    return () => window.removeEventListener("api-error", handler);
+  }, [show]);
 
   return (
     <ToastContext.Provider value={{ toast, show, hide }}>

@@ -1,17 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { isStaff } from "../constants/roles";
 import { loginUser } from "../api/auth";
+import { useModalA11y } from "../hooks/useModalA11y";
 
 export default function SignInModal({ isOpen, onClose }) {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const modalRef = useRef(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [keepSignedIn, setKeepSignedIn] = useState(true);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useModalA11y(isOpen, modalRef, null, onClose);
+
+  useEffect(() => {
+    if (isOpen && modalRef.current) {
+      const first = modalRef.current.querySelector("input, button");
+      first?.focus();
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -36,14 +46,11 @@ export default function SignInModal({ isOpen, onClose }) {
       <div
         className="signin-modal-backdrop"
         onClick={onClose}
-        onKeyDown={(e) => e.key === "Escape" && onClose()}
-        role="button"
-        tabIndex={0}
-        aria-label="Close sign in"
+        aria-hidden="true"
       />
-      <div className="signin-modal" role="dialog" aria-label="Sign in">
+      <div ref={modalRef} className="signin-modal" role="dialog" aria-modal="true" aria-labelledby="signin-title" tabIndex={-1}>
         <div className="signin-modal-header">
-          <h2 className="signin-modal-title">SIGN IN</h2>
+          <h2 id="signin-title" className="signin-modal-title">SIGN IN</h2>
           <button
             type="button"
             className="signin-modal-close"

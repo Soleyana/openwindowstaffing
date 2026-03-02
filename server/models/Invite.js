@@ -18,8 +18,13 @@ const inviteSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: [ROLES.RECRUITER],
-      default: ROLES.RECRUITER,
+      enum: [ROLES.RECRUITER, ROLES.OWNER],
+      required: true,
+    },
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company",
+      required: false, // optional for legacy invites; required in createInvite
     },
     tokenHash: {
       type: String,
@@ -36,9 +41,15 @@ const inviteSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     used: {
       type: Boolean,
       default: false,
+    },
+    status: {
+      type: String,
+      enum: ["active", "revoked", "accepted"],
+      default: "active",
     },
   },
   { timestamps: true }
@@ -50,11 +61,13 @@ inviteSchema.index({ expiresAt: 1 });
 
 inviteSchema.statics.hashToken = hashToken;
 
-inviteSchema.statics.createInviteRecord = async function (email, plainToken, invitedById) {
+inviteSchema.statics.createInviteRecord = async function (email, plainToken, invitedById, companyId, role = ROLES.RECRUITER) {
+  if (!companyId) throw new Error("companyId is required");
   const tokenHash = hashToken(plainToken);
   return this.create({
     email: email.trim().toLowerCase(),
-    role: ROLES.RECRUITER,
+    role: role || ROLES.RECRUITER,
+    companyId,
     tokenHash,
     invitedBy: invitedById,
     expiresAt: new Date(Date.now() + INVITE_EXPIRY_HOURS * 60 * 60 * 1000),
@@ -63,11 +76,12 @@ inviteSchema.statics.createInviteRecord = async function (email, plainToken, inv
 
 inviteSchema.statics.verifyAndConsume = async function (plainToken) {
   const tokenHash = hashToken(plainToken);
-  const invite = await this.findOne({ tokenHash }).select("+tokenHash");
+  const invite = await this.findOne({ tokenHash, status: "active" }).select("+tokenHash");
   if (!invite) return null;
   if (invite.used) return null;
   if (invite.expiresAt < new Date()) return null;
   invite.used = true;
+  invite.status = "accepted";
   await invite.save();
   return invite;
 };

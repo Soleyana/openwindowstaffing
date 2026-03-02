@@ -192,3 +192,48 @@ img {
     padding: 0.75rem 0;
   }
 }
+
+/* ========== Dashboard Inbox mobile ========== */
+@media (max-width: 768px) {
+  .inbox-layout {
+    flex-direction: column;
+  }
+
+  .inbox-sidebar {
+    width: 100%;
+    max-height: 200px;
+    min-height: 120px;
+  }
+
+  .inbox-main {
+    min-height: 300px;
+  }
+
+  .inbox-header-row {
+    flex-wrap: wrap;
+  }
+
+  .inbox-new-message-btn {
+    flex: 1;
+    min-width: 140px;
+  }
+}
+
+/* ========== Pipeline mobile - horizontal scroll ========== */
+@media (max-width: 768px) {
+  .pipeline-board {
+    overflow-x: auto;
+    overflow-y: visible;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pipeline-column {
+    flex: 0 0 260px;
+    min-width: 260px;
+  }
+
+  .pipeline-card {
+    min-width: 0;
+  }
+}

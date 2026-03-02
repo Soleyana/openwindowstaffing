@@ -1,5 +1,13 @@
 import { useNavigate, Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import heroBgUrl from "../assets/hero-bg.jpg";
+
+// Preload hero image as soon as the module loads so the browser fetches it early
+const preloadHeroImage = () => {
+  const img = new Image();
+  img.src = heroBgUrl;
+};
+preloadHeroImage();
 
 const categoryOptions = [
   { value: "", label: "Choose a category..." },
@@ -21,6 +29,14 @@ export default function Hero() {
   const [keywords, setKeywords] = useState("");
   const [location, setLocation] = useState("");
   const [category, setCategory] = useState("");
+  const [heroLoaded, setHeroLoaded] = useState(false);
+
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => setHeroLoaded(true);
+    img.src = heroBgUrl;
+    if (img.complete) setHeroLoaded(true);
+  }, []);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -32,12 +48,16 @@ export default function Hero() {
   };
 
   return (
-    <section className="hero hero--video">
+    <section
+      className={`hero hero--video ${heroLoaded ? "" : "hero--loading"}`}
+      style={{ "--hero-bg-url": `url(${heroBgUrl})` }}
+    >
       <div className="hero-video-wrap hero--image-wrap">
         <img
-          src="/images/top.jpg"
+          src={heroBgUrl}
           alt=""
           className="hero-bg-image"
+          onLoad={() => setHeroLoaded(true)}
         />
         <div className="hero-video-overlay" aria-hidden="true" />
       </div>

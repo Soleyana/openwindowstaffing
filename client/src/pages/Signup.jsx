@@ -1,19 +1,30 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { isOwner } from "../constants/roles";
 import { registerUser } from "../api/auth";
 import { PASSWORD_RULES } from "../config";
+import { getRedirectTarget } from "../lib/authRedirect";
+import AuthLoadingSpinner from "../components/AuthLoadingSpinner";
 
 export default function Signup() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const location = useLocation();
+  const { user, authLoading, login } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      const target = getRedirectTarget(user, location.state?.from);
+      navigate(target, { replace: true });
+    }
+  }, [authLoading, user, navigate, location.state?.from]);
+
+  if (authLoading || user) return <AuthLoadingSpinner />;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -34,7 +45,8 @@ export default function Signup() {
     try {
       const data = await registerUser(name, email, password);
       login(data.user);
-      navigate(isOwner(data.user?.role) ? "/dashboard" : "/dashboard");
+      const target = getRedirectTarget(data.user, location.state?.from);
+      navigate(target, { replace: true });
     } catch (err) {
       setError(err.message || "Registration failed");
     } finally {

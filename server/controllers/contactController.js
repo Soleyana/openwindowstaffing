@@ -1,6 +1,5 @@
-const { DEFAULT_COMPANY } = require("../config/env");
-
 const emailService = require("../services/emailService");
+const activityLogService = require("../services/activityLogService");
 
 function sanitize(str) {
   if (typeof str !== "string") return "";
@@ -26,9 +25,16 @@ exports.submit = async (req, res) => {
       });
     }
 
-    emailService.sendContactNotification(n, e, s, m).catch((err) =>
-      console.error("[Email] Contact notification failed:", err?.message)
-    );
+    const sent = await emailService.sendContactNotification(n, e, s, m);
+    if (sent) {
+      activityLogService.log({
+        req,
+        targetType: "Contact",
+        actionType: "contact_submitted_email_sent",
+        message: "Contact form email sent",
+        metadata: { fromEmail: e, subject: s },
+      }).catch(() => {});
+    }
 
     return res.status(200).json({
       success: true,

@@ -1,47 +1,76 @@
 const Invite = require("../models/Invite");
 const User = require("../models/User");
+const RecruiterMembership = require("../models/RecruiterMembership");
 const { sanitizeErrorMessage } = require("../utils/sanitizeError");
+const activityLogService = require("../services/activityLogService");
+const { hasCompanyAccess } = require("../services/companyAccessService");
 const { CLIENT_URL, isProduction } = require("../config/env");
 const { ROLES } = require("../constants/roles");
 const authService = require("../services/authService");
 
 exports.createInvite = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, companyId, role } = req.body;
 
     if (!email?.trim()) {
       return res.status(400).json({ success: false, message: "Email is required" });
     }
+    if (!companyId) {
+      return res.status(400).json({ success: false, message: "companyId is required" });
+    }
+
+    const { allowed } = await hasCompanyAccess(req.user._id.toString(), companyId);
+    if (!allowed) {
+      return res.status(403).json({ success: false, message: "You do not have access to this company" });
+    }
+
+    const inviteRole = role === ROLES.OWNER ? ROLES.OWNER : ROLES.RECRUITER;
 
     const normalizedEmail = email.trim().toLowerCase();
 
     const existingUser = await User.findOne({ email: normalizedEmail });
-    if (existingUser && existingUser.role === ROLES.RECRUITER) {
-      return res.status(400).json({
-        success: false,
-        message: "This person already has recruiter access.",
+    if (existingUser && [ROLES.RECRUITER, ROLES.OWNER].includes(existingUser.role)) {
+      const hasMembership = await RecruiterMembership.findOne({
+        userId: existingUser._id,
+        companyId,
+        status: "active",
       });
+      if (hasMembership) {
+        return res.status(400).json({
+          success: false,
+          message: "This person already has access to this company.",
+        });
+      }
     }
 
     const existingInvite = await Invite.findOne({
       email: normalizedEmail,
+      companyId,
       used: false,
       expiresAt: { $gt: new Date() },
     });
     if (existingInvite) {
       return res.status(400).json({
         success: false,
-        message: "An invite is already pending for this email.",
+        message: "An invite is already pending for this email to this company.",
       });
     }
 
     const plainToken = authService.generateInviteToken();
-    const invite = await Invite.createInviteRecord(normalizedEmail, plainToken, req.user._id);
+    const invite = await Invite.createInviteRecord(normalizedEmail, plainToken, req.user._id, companyId, inviteRole);
 
     const baseUrl = CLIENT_URL || (!isProduction ? "http://localhost:5176" : null);
     if (!baseUrl) throw new Error("CLIENT_URL is required in production.");
 
     const inviteUrl = `${baseUrl}/invite/${plainToken}`;
+
+    await activityLogService.logFromReq(req, {
+      companyId: invite.companyId?.toString?.() || companyId,
+      targetType: "Invite",
+      targetId: invite._id.toString(),
+      actionType: "invite_sent",
+      message: `Invite sent to ${invite.email}`,
+    });
 
     res.status(201).json({
       success: true,
@@ -146,6 +175,13 @@ exports.revokeInvite = async (req, res) => {
     invite.used = true;
     await invite.save();
 
+    await activityLogService.logFromReq(req, {
+      targetType: "Invite",
+      targetId: invite._id.toString(),
+      actionType: "invite_revoked",
+      message: `Invite revoked for ${invite.email}`,
+    });
+
     res.status(200).json({ success: true, message: "Invite revoked" });
   } catch (error) {
     res.status(500).json({
@@ -164,13 +200,23 @@ exports.getInviteByToken = async (req, res) => {
       tokenHash: Invite.hashToken(token),
       used: false,
       expiresAt: { $gt: new Date() },
-    }).select("email");
+    })
+      .select("email role companyId")
+      .populate("companyId", "name");
 
     if (!invite) {
       return res.status(404).json({ success: false, message: "Invalid or expired invite" });
     }
 
-    res.status(200).json({ success: true, data: { email: invite.email } });
+    res.status(200).json({
+      success: true,
+      data: {
+        email: invite.email,
+        role: invite.role,
+        companyId: invite.companyId?._id,
+        companyName: invite.companyId?.name,
+      },
+    });
   } catch (error) {
     res.status(500).json({
       success: false,

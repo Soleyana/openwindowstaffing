@@ -8,24 +8,38 @@ const {
   toPipelineStatus,
 } = require("../constants/applicationStatuses");
 
-/** Get job IDs the user can access (owner: all, recruiter: own jobs) */
+/** Get job IDs the user can access (owner: all, recruiter: own jobs + company membership jobs) */
 async function getAccessibleJobIds(user) {
   if (user.role === ROLES.OWNER) {
     const jobs = await Job.find({}).select("_id");
     return jobs.map((j) => j._id);
   }
-  const jobs = await Job.find({ createdBy: user._id }).select("_id");
+  const { getAccessibleCompanyIds } = require("./companyAccessService");
+  const companyIds = await getAccessibleCompanyIds(user._id.toString());
+  const jobs = await Job.find({
+    $or: [
+      { createdBy: user._id },
+      ...(companyIds.length ? [{ companyId: { $in: companyIds } }] : []),
+    ],
+  }).select("_id");
   return jobs.map((j) => j._id);
 }
 
-/** Check if user can access an application (via job ownership or owner role) */
+/** Check if user can access an application (via job ownership, company membership, or owner role) */
 async function canAccessApplication(user, applicationId) {
   const app = await Application.findById(applicationId)
-    .select("jobId")
-    .populate("jobId", "createdBy");
-  if (!app || !app.jobId) return false;
+    .select("jobId companyId")
+    .populate("jobId", "createdBy companyId");
+  if (!app) return false;
   if (user.role === ROLES.OWNER) return true;
-  return app.jobId.createdBy?.toString() === user._id.toString();
+  if (app.jobId && app.jobId.createdBy?.toString() === user._id.toString()) return true;
+  const companyId = app.companyId?.toString() || app.jobId?.companyId?.toString();
+  if (companyId) {
+    const { hasCompanyAccess } = require("./companyAccessService");
+    const { allowed } = await hasCompanyAccess(user._id.toString(), companyId);
+    if (allowed) return true;
+  }
+  return false;
 }
 
 /** Get all applications for recruiter, grouped by job and status */
@@ -34,7 +48,7 @@ async function getApplicationsGrouped(user) {
 
   const applications = await Application.find({ jobId: { $in: jobIds } })
     .select("+recruiterNotes")
-    .populate("jobId", "title company location jobType")
+    .populate("jobId", "title company location jobType companyId createdBy")
     .populate("applicant", "name email")
     .populate("lastUpdatedBy", "name")
     .populate("recruiterNotes.createdBy", "name")
@@ -85,20 +99,29 @@ async function getApplicantsForJob(user, jobId) {
 }
 
 /** Update application status with validation */
-async function updateStatus(user, applicationId, newStatus) {
+async function updateStatus(user, applicationId, newStatus, note) {
   if (!isValidPipelineStatus(newStatus)) {
     throw new Error("Invalid status");
   }
 
-  const app = await Application.findById(applicationId).select("+recruiterNotes");
+  const app = await Application.findById(applicationId).select("+recruiterNotes +statusHistory");
   if (!app) throw new Error("Application not found");
 
   const accessible = await canAccessApplication(user, applicationId);
   if (!accessible) throw new Error("Not authorized");
 
+  const fromStatus = app.status;
   app.status = newStatus;
   app.lastUpdatedBy = user._id;
   app.lastUpdatedAt = new Date();
+  app.statusHistory = app.statusHistory || [];
+  app.statusHistory.push({
+    from: fromStatus,
+    to: newStatus,
+    changedBy: user._id,
+    changedAt: new Date(),
+    note: note && String(note).trim() ? String(note).trim() : undefined,
+  });
   await app.save();
 
   return app;

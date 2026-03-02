@@ -2,7 +2,9 @@
  * Cloud storage service for S3 / R2.
  * When STORAGE_* env vars are set, uploads go to cloud. Otherwise, use local disk via multer.
  */
-const { S3Client, PutObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");
+const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
+const path = require("path");
+const fs = require("fs");
 
 const BUCKET = process.env.STORAGE_BUCKET;
 const REGION = process.env.STORAGE_REGION || "auto";
@@ -85,8 +87,40 @@ async function getStream(key) {
   }
 }
 
+/**
+ * Delete a file. For local: fileUrl is filename in uploads/. For S3: key is stored as fileKey.
+ * @param {string} fileUrlOrKey - Local filename or S3 key
+ * @param {object} doc - Optional doc with fileKey, storageProvider
+ * @returns {Promise<boolean>}
+ */
+async function deleteFile(fileUrlOrKey, doc = {}) {
+  if (isCloudStorage() && (doc.fileKey || fileUrlOrKey?.startsWith(PREFIX + "/"))) {
+    const key = doc.fileKey || fileUrlOrKey;
+    try {
+      const s3 = getClient();
+      await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+  const uploadsDir = path.join(__dirname, "..", "uploads");
+  const safeName = path.basename(String(fileUrlOrKey || "")).replace(/\.\./g, "");
+  const filePath = path.join(uploadsDir, safeName);
+  if (fs.existsSync(filePath)) {
+    try {
+      fs.unlinkSync(filePath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 module.exports = {
   isCloudStorage,
   upload,
   getStream,
+  deleteFile,
 };

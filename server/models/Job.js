@@ -47,6 +47,8 @@ const jobSchema = new mongoose.Schema(
       default: DEFAULT_COMPANY,
       trim: true,
     },
+    companyId: { type: mongoose.Schema.Types.ObjectId, ref: "Company" },
+    facilityId: { type: mongoose.Schema.Types.ObjectId, ref: "Facility" },
     companyWebsite: { type: String, trim: true },
     companyEmail: { type: String, trim: true },
     companyContactPhone: { type: String, trim: true },
@@ -63,10 +65,18 @@ const jobSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    status: {
+      type: String,
+      enum: ["open", "closed", "expired"],
+      default: "open",
+    },
   },
   { timestamps: true }
 );
 
 jobSchema.index({ expiresAt: 1 });
+jobSchema.index({ status: 1 });
+jobSchema.index({ companyId: 1 });
+jobSchema.index({ facilityId: 1 });
 
 module.exports = mongoose.model("Job", jobSchema);

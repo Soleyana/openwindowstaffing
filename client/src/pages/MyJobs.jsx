@@ -1,14 +1,16 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { isStaff } from "../constants/roles";
 import { BRAND } from "../config";
 import { useToast } from "../context/ToastContext";
 import { getMyJobs, deleteJob } from "../api/jobs";
 import { getApplicationsForJob, exportApplicationsForJob } from "../api/applications";
+import { createOrFindThreadByJobOrApplication } from "../api/messages";
 import StatusBadge from "../components/StatusBadge";
 
 export default function MyJobs() {
+  const navigate = useNavigate();
   const { isLoggedIn, user } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,6 +19,7 @@ export default function MyJobs() {
   const [applicants, setApplicants] = useState([]);
   const [deletingId, setDeletingId] = useState(null);
   const [exportingId, setExportingId] = useState(null);
+  const [messagingId, setMessagingId] = useState(null);
   const toast = useToast();
 
   useEffect(() => {
@@ -173,7 +176,28 @@ export default function MyJobs() {
                               <strong>{app.applicant?.name || app.firstName || app.email}</strong>
                               <a href={`mailto:${app.applicant?.email || app.email}`}>{app.applicant?.email || app.email}</a>
                             </div>
-                            <StatusBadge status={app.status} />
+                            <div className="applicant-item-actions">
+                              <StatusBadge status={app.status} />
+                              <button
+                                type="button"
+                                className="applicant-item-message-btn"
+                                disabled={messagingId === app._id}
+                                onClick={async () => {
+                                  setMessagingId(app._id);
+                                  try {
+                                    const threadId = await createOrFindThreadByJobOrApplication({ applicationId: app._id });
+                                    if (threadId) navigate(`/inbox?thread=${threadId}`);
+                                    else toast.show("Could not start conversation", "error");
+                                  } catch (err) {
+                                    toast.show(err.response?.data?.message || err.message || "Could not message", "error");
+                                  } finally {
+                                    setMessagingId(null);
+                                  }
+                                }}
+                              >
+                                {messagingId === app._id ? "Opening…" : "Message Candidate"}
+                              </button>
+                            </div>
                           </div>
                           {app.coverMessage && <p className="applicant-cover">{app.coverMessage}</p>}
                           <span className="applicant-date">

@@ -8,6 +8,8 @@ import { BRAND } from "../config";
 import { trackEvent } from "../components/Analytics";
 import { getJobById } from "../api/jobs";
 import { applyToJob, checkApplied } from "../api/applications";
+import { checkSaved, saveJob, unsaveJob } from "../api/savedJobs";
+import { createOrFindThreadByJobOrApplication } from "../api/messages";
 
 const SITE_URL = import.meta.env.VITE_SITE_URL || (typeof window !== "undefined" ? window.location.origin : "");
 
@@ -19,10 +21,13 @@ export default function JobDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [applied, setApplied] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [savingJob, setSavingJob] = useState(false);
   const [showApply, setShowApply] = useState(false);
   const [coverMessage, setCoverMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const toast = useToast();
+  const [messaging, setMessaging] = useState(false);
+  const { show: showToast } = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -41,6 +46,21 @@ export default function JobDetail() {
     load();
     return () => { cancelled = true; };
   }, [id]);
+
+  useEffect(() => {
+    if (!job || !isLoggedIn) return;
+    let cancelled = false;
+    async function loadSaved() {
+      try {
+        const d = await checkSaved(job._id);
+        if (!cancelled) setSaved(d.saved || false);
+      } catch {
+        if (!cancelled) setSaved(false);
+      }
+    }
+    loadSaved();
+    return () => { cancelled = true; };
+  }, [job?._id, isLoggedIn]);
 
   useEffect(() => {
     if (!job || !isLoggedIn || user?.role !== ROLES.APPLICANT) return;
@@ -65,7 +85,7 @@ export default function JobDetail() {
       setApplied(true);
       setShowApply(false);
     } catch (err) {
-      toast.show(err.response?.data?.message || err.message || "Failed to apply", "error");
+      showToast(err.response?.data?.message || err.message || "Failed to apply", "error");
     } finally {
       setSubmitting(false);
     }
@@ -99,6 +119,33 @@ export default function JobDetail() {
         <div className="job-detail-meta">
           <span>🏢 {job.company}</span>
           <span>📍 {job.location}</span>
+          {isLoggedIn && (
+            <button
+              type="button"
+              className="job-detail-save-btn"
+              onClick={async () => {
+                setSavingJob(true);
+                try {
+                  if (saved) {
+                    await unsaveJob(job._id);
+                    setSaved(false);
+                    showToast("Removed from saved", "success");
+                  } else {
+                    await saveJob(job._id);
+                    setSaved(true);
+                    showToast("Job saved", "success");
+                  }
+                } catch (e) {
+                  showToast(e?.response?.data?.message || "Failed", "error");
+                } finally {
+                  setSavingJob(false);
+                }
+              }}
+              disabled={savingJob}
+            >
+              {saved ? "✓ Saved" : "Save job"}
+            </button>
+          )}
           {job.payRate && <span>💰 {job.payRate}</span>}
           {postedDate && <span>📅 Posted {postedDate}</span>}
         </div>
@@ -106,6 +153,29 @@ export default function JobDetail() {
           <h3>Description</h3>
           <p>{job.description}</p>
         </div>
+        {isLoggedIn && user?.role === ROLES.APPLICANT && job?.createdBy && (
+          <div className="job-detail-message-recruiter">
+            <button
+              type="button"
+              className="job-detail-message-btn"
+              disabled={messaging}
+              onClick={async () => {
+                setMessaging(true);
+                try {
+                  const threadId = await createOrFindThreadByJobOrApplication({ jobId: job._id });
+                  if (threadId) navigate(`/inbox?thread=${threadId}`);
+                  else showToast("Could not start conversation", "error");
+                } catch (err) {
+                  showToast(err.response?.data?.message || err.message || "Could not start message", "error");
+                } finally {
+                  setMessaging(false);
+                }
+              }}
+            >
+              {messaging ? "Opening…" : "Message Recruiter"}
+            </button>
+          </div>
+        )}
         {isLoggedIn && user?.role === ROLES.APPLICANT && (
           <div className="job-detail-apply">
             {applied ? (

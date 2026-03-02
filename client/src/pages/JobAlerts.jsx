@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { submitContact } from "../api/contact";
-import { BRAND } from "../config";
+import { subscribeJobAlerts } from "../api/jobAlerts";
 
 export default function JobAlerts() {
   const [email, setEmail] = useState("");
@@ -13,10 +12,9 @@ export default function JobAlerts() {
     if (!email.trim()) return;
     setStatus("loading");
     try {
-      await submitContact({
-        name: "Job Alert Signup",
+      await subscribeJobAlerts({
         email: email.trim(),
-        message: `Job Alert signup. Keywords: ${keywords.trim() || "All"}`,
+        keywords: keywords.trim() || undefined,
       });
       setStatus("success");
       setEmail("");

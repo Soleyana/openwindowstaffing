@@ -1,12 +1,14 @@
 import axios from "axios";
+import { API_BASE } from "./config";
+import { REDIRECT_KEY } from "../lib/authRedirect";
+import { isAuthInitialized } from "../lib/authState";
 
 /**
- * baseURL: VITE_API_URL in production (e.g. https://openwindowstaffing-1.onrender.com/api).
- * Fallback to "/api" for local dev (Vite proxy forwards to backend).
+ * baseURL from VITE_API_URL (production) or "/api" (local dev proxy).
  * withCredentials: true enables cookie-based auth (httpOnly cookies).
  */
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "/api",
+  baseURL: API_BASE,
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
@@ -20,5 +22,46 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+/* 401: redirect to login with message. Skip for auth/me. Only redirect when auth has finished initializing. */
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (typeof window !== "undefined") {
+      if (err.response?.status === 401) {
+        const url = err.config?.url || "";
+        if (url.includes("auth/me")) return Promise.reject(err);
+        if (!isAuthInitialized()) return Promise.reject(err);
+        const currentPath = window.location.pathname || "";
+        const skipRedirectPaths = ["/login", "/signup", "/forgot-password", "/reset-password", "/invite"];
+        if (!skipRedirectPaths.some((p) => currentPath.startsWith(p))) {
+          try {
+            sessionStorage.setItem(REDIRECT_KEY, currentPath + (window.location.search || ""));
+          } catch {
+            /* ignore */
+          }
+          window.sessionStorage.setItem("auth_expired_message", "Session expired. Please sign in again.");
+          window.location.replace("/login");
+          return Promise.reject(err);
+        }
+      } else {
+        /* Global error toast for network/server failures */
+        const isNetworkError = !err.response;
+        const isServerError = err.response?.status >= 500;
+        if (isNetworkError || isServerError) {
+          const message = isNetworkError
+            ? "Network error. Please check your connection and try again."
+            : (err.response?.data?.message || "Server error. Please try again later.");
+          window.dispatchEvent(new CustomEvent("api-error", { detail: { message } }));
+        }
+      }
+      if (import.meta.env.DEV && err.config) {
+        const reqId = err.response?.data?.requestId || err.request?.requestId;
+        if (reqId) console.debug("[API Error] requestId:", reqId, err.config?.url, err.response?.status);
+      }
+    }
+    return Promise.reject(err);
+  }
+);
 
 export default api;

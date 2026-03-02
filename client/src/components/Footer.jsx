@@ -1,9 +1,35 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { BRAND } from "../config";
+import { subscribeNewsletter } from "../api/newsletter";
+import { useToast } from "../context/ToastContext";
 
 export default function Footer() {
   const { isLoggedIn } = useAuth();
+  const toast = useToast();
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [newsletterSubmitting, setNewsletterSubmitting] = useState(false);
+
+  const handleNewsletterSubmit = async (e) => {
+    e.preventDefault();
+    const email = newsletterEmail.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.show("Please enter a valid email", "error");
+      return;
+    }
+    setNewsletterSubmitting(true);
+    try {
+      await subscribeNewsletter(email);
+      toast.show("Subscribed! Check your inbox.", "success");
+      setNewsletterEmail("");
+    } catch (err) {
+      toast.show(err.response?.data?.message || "Subscription failed", "error");
+    } finally {
+      setNewsletterSubmitting(false);
+    }
+  };
+
   return (
     <footer className="footer">
       <div className="footer-top">
@@ -42,12 +68,28 @@ export default function Footer() {
           <h4 className="footer-col-title">Legals</h4>
           <Link to="/legal" className="footer-col-link">Privacy Policy</Link>
           <Link to="/legal#terms" className="footer-col-link">Terms of Service</Link>
+          <Link to="/legal#disclaimers" className="footer-col-link">Disclaimers</Link>
         </div>
         <div className="footer-col">
           <h4 className="footer-col-title">Subscribe To Our Newsletter</h4>
           <p className="footer-col-text">
             Get the latest job openings and staffing insights delivered to your inbox.
           </p>
+          <form onSubmit={handleNewsletterSubmit} className="footer-newsletter-form">
+            <input
+              type="email"
+              value={newsletterEmail}
+              onChange={(e) => setNewsletterEmail(e.target.value)}
+              placeholder="your@email.com"
+              required
+              disabled={newsletterSubmitting}
+              className="footer-newsletter-input"
+              aria-label="Email for newsletter"
+            />
+            <button type="submit" disabled={newsletterSubmitting} className="footer-newsletter-btn">
+              {newsletterSubmitting ? "…" : "Subscribe"}
+            </button>
+          </form>
           <p className="footer-contact-label">Contact:</p>
           <a href={`mailto:${BRAND.contactEmail}`} className="footer-contact-link">{BRAND.contactEmail}</a>
           <p className="footer-contact-phone">{BRAND.contactPhone}</p>

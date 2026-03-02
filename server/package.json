@@ -6,7 +6,8 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "seed": "node seedJobs.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "seed:full": "node scripts/seed.js",
+    "test": "cross-env NODE_ENV=test node --test tests/api.test.js"
   },
   "keywords": [],
   "author": "",
@@ -14,19 +15,23 @@
   "type": "commonjs",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1000.0",
+    "agenda": "^6.2.3",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.2.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.2.1",
     "multer": "^2.0.2",
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3",
-    "resend": "^6.9.3"
+    "resend": "^6.9.3",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
+    "cross-env": "^7.0.3",
     "nodemon": "^3.1.11"
   },
   "description": ""

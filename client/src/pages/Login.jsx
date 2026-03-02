@@ -1,13 +1,17 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { isStaff } from "../constants/roles";
+import { useToast } from "../context/ToastContext";
 import { loginUser } from "../api/auth";
 import { getJobs } from "../api/jobs";
+import { getRedirectTarget } from "../lib/authRedirect";
+import AuthLoadingSpinner from "../components/AuthLoadingSpinner";
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const location = useLocation();
+  const { user, authLoading, login } = useAuth();
+  const toast = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [keepSignedIn, setKeepSignedIn] = useState(true);
@@ -16,10 +20,27 @@ export default function Login() {
   const [serverReachable, setServerReachable] = useState(null);
 
   useEffect(() => {
+    const msg = window.sessionStorage.getItem("auth_expired_message");
+    if (msg) {
+      window.sessionStorage.removeItem("auth_expired_message");
+      toast.show(msg, "error");
+    }
+  }, [toast]);
+
+  useEffect(() => {
     getJobs()
       .then(() => setServerReachable(true))
       .catch(() => setServerReachable(false));
   }, []);
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      const target = getRedirectTarget(user, location.state?.from);
+      navigate(target, { replace: true });
+    }
+  }, [authLoading, user, navigate, location.state?.from]);
+
+  if (authLoading || user) return <AuthLoadingSpinner />;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,7 +49,8 @@ export default function Login() {
     try {
       const data = await loginUser(email, password);
       login(data.user);
-      navigate(isStaff(data.user?.role) ? "/dashboard" : "/dashboard");
+      const target = getRedirectTarget(data.user, location.state?.from);
+      navigate(target, { replace: true });
     } catch (err) {
       setError(err.message || "Something went wrong");
     } finally {

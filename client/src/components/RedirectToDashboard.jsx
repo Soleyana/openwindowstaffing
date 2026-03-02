@@ -1,13 +1,12 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { isStaff } from "../constants/roles";
+import AuthLoadingSpinner from "./AuthLoadingSpinner";
 
 export default function RedirectToDashboard({ children }) {
-  const { isLoggedIn, user } = useAuth();
+  const { user, authLoading } = useAuth();
 
-  if (isLoggedIn) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  if (authLoading) return <AuthLoadingSpinner />;
+  if (user) return <Navigate to="/dashboard" replace />;
 
   return children;
 }

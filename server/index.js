@@ -5,6 +5,9 @@ const express = require("express");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const multer = require("multer");
+const requestIdMiddleware = require("./middleware/requestId");
+const { authLimiter, contactLimiter } = require("./middleware/rateLimiter");
+const { maybeRateLimit } = require("./middleware/maybeRateLimit");
 const path = require("path");
 const fs = require("fs");
 const connectDB = require("./config/db");
@@ -18,36 +21,85 @@ const applicationRoutes = require("./routes/applicationRoutes");
 const inviteRoutes = require("./routes/inviteRoutes");
 const recruiterApplicationRoutes = require("./routes/recruiterApplicationRoutes");
 const contactRoutes = require("./routes/contactRoutes");
+const companyRoutes = require("./routes/companyRoutes");
+const facilityRoutes = require("./routes/facilityRoutes");
+const candidateRoutes = require("./routes/candidateRoutes");
+const documentRoutes = require("./routes/documentRoutes");
+const activityRoutes = require("./routes/activityRoutes");
+const savedJobRoutes = require("./routes/savedJobRoutes");
+const staffingRequestRoutes = require("./routes/staffingRequestRoutes");
+const jobAlertRoutes = require("./routes/jobAlertRoutes");
+const messageRoutes = require("./routes/messageRoutes");
+const reportRoutes = require("./routes/reportRoutes");
+const invoiceRoutes = require("./routes/invoiceRoutes");
+const newsletterRoutes = require("./routes/newsletterRoutes");
+const testimonialRoutes = require("./routes/testimonialRoutes");
 
 const app = express();
 
-if (process.env.NODE_ENV !== "production") {
-  app.use((req, res, next) => {
-    logger.info({ method: req.method, url: req.url }, "request");
-    next();
-  });
-}
-
+app.use(requestIdMiddleware);
+const isProduction = process.env.NODE_ENV === "production";
+const corsOrigin = CORS_ORIGINS.length > 0
+  ? CORS_ORIGINS
+  : isProduction
+    ? (process.env.CLIENT_URL ? [process.env.CLIENT_URL] : ["http://localhost:5173"])
+    : true;
 app.use(cors({
-  origin: CORS_ORIGINS,
+  origin: corsOrigin,
   credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
 }));
+app.use((req, res, next) => {
+  logger.info({
+    requestId: req.requestId,
+    method: req.method,
+    url: req.url,
+  }, "request");
+  next();
+});
 app.use(cookieParser());
+const responseFormatter = require("./middleware/responseFormatter");
+app.use(responseFormatter);
 
-app.get("/api/applications/ping", (_, res) => res.json({ ok: true }));
 app.use(express.json());
 
 /* Health checks */
-app.get("/", (req, res) => {
-  res.json({ status: "API running" });
+app.get("/", (req, res) => res.json({ status: "API running" }));
+app.get("/api/status", (_, res) => res.json({ ok: true, service: "api" }));
+app.get("/api/version", (req, res) => {
+  const version =
+    process.env.RENDER_GIT_COMMIT ||
+    process.env.COMMIT_SHA ||
+    process.env.VERCEL_GIT_COMMIT_SHA ||
+    "dev";
+  res.json({ ok: true, version });
 });
+
+/* Dev-only: CORS/cookie diagnostics for "works locally but not in prod" */
+if (process.env.NODE_ENV !== "production") {
+  const { getAuthCookieOptions, isCrossSiteCookiesEnabled } = require("./utils/cookieOptions");
+  app.get("/api/diagnostics/cors", (req, res) => {
+    const opts = getAuthCookieOptions(req);
+    res.json({
+      origin: req.get("origin") || "(none)",
+      cookieOptions: {
+        httpOnly: opts.httpOnly,
+        path: opts.path,
+        secure: opts.secure,
+        sameSite: opts.sameSite,
+      },
+      allowedOrigins: Array.isArray(corsOrigin) ? corsOrigin : "(dynamic/true)",
+      isCrossSiteCookiesEnabled: isCrossSiteCookiesEnabled(),
+    });
+  });
+}
 
 app.get("/api/health", async (req, res) => {
   try {
     const mongoose = require("mongoose");
     await mongoose.connection.db.admin().ping();
-    res.json({ status: "ok", db: "connected" });
+    res.json({ status: "ok", db: "connected", timestamp: new Date().toISOString() });
   } catch (err) {
     res.status(503).json({
       status: "error",
@@ -58,12 +110,25 @@ app.get("/api/health", async (req, res) => {
 });
 
 app.use("/uploads", express.static("uploads"));
-app.use("/api/auth", authRoutes);
+app.use("/api/auth", maybeRateLimit(authLimiter), authRoutes);
 app.use("/api/jobs", jobRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/invites", inviteRoutes);
 app.use("/api/recruiter", recruiterApplicationRoutes);
-app.use("/api/contact", contactRoutes);
+app.use("/api/contact", maybeRateLimit(contactLimiter), contactRoutes);
+app.use("/api/companies", companyRoutes);
+app.use("/api/facilities", facilityRoutes);
+app.use("/api/candidates", candidateRoutes);
+app.use("/api/documents", documentRoutes);
+app.use("/api/activity", activityRoutes);
+app.use("/api/saved-jobs", savedJobRoutes);
+app.use("/api/staffing-requests", staffingRequestRoutes);
+app.use("/api/job-alerts", jobAlertRoutes);
+app.use("/api/messages", messageRoutes);
+app.use("/api/reports", reportRoutes);
+app.use("/api/invoices", invoiceRoutes);
+app.use("/api/newsletter", newsletterRoutes);
+app.use("/api/testimonials", testimonialRoutes);
 
 /* 404 – unknown routes */
 app.use((req, res) => {
@@ -102,10 +167,39 @@ app.use((err, req, res, next) => {
   });
 });
 
+const ROUTE_PREFIXES = [
+  "/api/auth",
+  "/api/jobs",
+  "/api/applications",
+  "/api/invites",
+  "/api/recruiter",
+  "/api/contact",
+  "/api/companies",
+  "/api/facilities",
+  "/api/candidates",
+  "/api/documents",
+  "/api/activity",
+  "/api/saved-jobs",
+  "/api/staffing-requests",
+  "/api/job-alerts",
+  "/api/messages",
+  "/api/reports",
+  "/api/invoices",
+  "/api/newsletter",
+  "/api/testimonials",
+];
+
 const startServer = async () => {
   await connectDB();
-  app.listen(PORT, () => {
+  app.listen(PORT, async () => {
     logger.info(`Server running on port ${PORT}`);
+    logger.info({ mountedRoutes: ROUTE_PREFIXES }, "Mounted route prefixes");
+    try {
+      const { startJobs } = require("./jobs");
+      await startJobs();
+    } catch (err) {
+      logger.warn({ err: err.message }, "Background jobs not started");
+    }
   });
 };
 

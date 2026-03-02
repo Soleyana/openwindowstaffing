@@ -1,6 +1,9 @@
-import { NavLink, Outlet, Navigate } from "react-router-dom";
+import { useState } from "react";
+import { NavLink, Outlet, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { isStaff, isOwner } from "../constants/roles";
+import AuthLoadingSpinner from "./AuthLoadingSpinner";
+import { REDIRECT_KEY, setLastProtectedRoute } from "../lib/authRedirect";
 
 const SidebarIcon = ({ name }) => {
   const iconProps = { width: 20, height: 20, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" };
@@ -14,32 +17,54 @@ const SidebarIcon = ({ name }) => {
   if (name === "users") return <svg {...iconProps}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>;
   if (name === "user-plus") return <svg {...iconProps}><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="20" y1="8" x2="20" y2="14" /><line x1="23" y1="11" x2="17" y2="11" /></svg>;
   if (name === "settings") return <svg {...iconProps}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>;
+  if (name === "user") return <svg {...iconProps}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>;
+  if (name === "mail") return <svg {...iconProps}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>;
   return null;
 };
 
 export default function DashboardLayout() {
-  const { isLoggedIn, user } = useAuth();
+  const location = useLocation();
+  const { user, authLoading } = useAuth();
 
-  if (!isLoggedIn) {
-    return <Navigate to="/login" replace />;
+  if (authLoading) return <AuthLoadingSpinner />;
+  if (!user) {
+    const from = `${location.pathname}${location.search}`;
+    try {
+      sessionStorage.setItem(REDIRECT_KEY, from);
+    } catch {
+      /* ignore */
+    }
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  setLastProtectedRoute(`${location.pathname}${location.search}`);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const isRecruiter = isStaff(user?.role);
+
+  const closeSidebar = () => setSidebarOpen(false);
 
   const recruiterNavItems = [
     { to: "/dashboard", icon: "dashboard", label: "Dashboard" },
+    { to: "/inbox", icon: "mail", label: "Inbox" },
     { to: "/applicant-pipeline", icon: "users", label: "Applicant Pipeline" },
     { to: "/recruiter-dashboard", icon: "users", label: "Applicants" },
+    { to: "/candidates", icon: "search", label: "Candidate Search" },
     ...(isOwner(user) ? [{ to: "/invite-recruiter", icon: "user-plus", label: "Invite Recruiter" }] : []),
     { to: "/my-jobs", icon: "briefcase", label: "My Jobs" },
     { to: "/my-companies", icon: "building", label: "My Companies" },
+    { to: "/dashboard/companies/manage", icon: "building", label: "Manage Companies" },
+    { to: "/dashboard/facilities", icon: "building", label: "Manage Facilities" },
+    { to: "/dashboard/testimonials", icon: "chart", label: "Manage Reviews" },
+    { to: "/staffing-requests", icon: "briefcase", label: "Staffing Requests" },
     { to: "/listing-reports", icon: "chart", label: "Listing Reports" },
     { to: "/orders", icon: "card", label: "Orders" },
   ];
 
   const candidateNavItems = [
     { to: "/dashboard", icon: "dashboard", label: "Dashboard" },
+    { to: "/inbox", icon: "mail", label: "Inbox" },
     { to: "/my-applications", icon: "briefcase", label: "My Applications" },
+    { to: "/my-profile", icon: "user", label: "My Profile" },
     { to: "/jobs", icon: "search", label: "Browse Jobs" },
   ];
 
@@ -49,7 +74,21 @@ export default function DashboardLayout() {
 
   return (
     <div className="dashboard-layout">
-      <aside className="dashboard-sidebar">
+      <button
+        type="button"
+        className="dashboard-sidebar-toggle"
+        aria-label="Toggle menu"
+        aria-expanded={sidebarOpen}
+        onClick={() => setSidebarOpen((o) => !o)}
+      >
+        <span />
+        <span />
+        <span />
+      </button>
+      {sidebarOpen && (
+        <div className="dashboard-sidebar-backdrop" aria-hidden="true" onClick={closeSidebar} />
+      )}
+      <aside className={`dashboard-sidebar ${sidebarOpen ? "dashboard-sidebar--open" : ""}`}>
         <div className="dashboard-sidebar-avatar" aria-hidden="true">
           <span>{user?.name?.charAt(0) || "U"}</span>
         </div>
@@ -63,6 +102,7 @@ export default function DashboardLayout() {
                 className={({ isActive }) =>
                   `dashboard-sidebar-link ${isActive ? "dashboard-sidebar-link--active" : ""}`
                 }
+                onClick={closeSidebar}
               >
                 <span className="dashboard-sidebar-icon" aria-hidden="true">
                   <SidebarIcon name={item.icon} />
@@ -81,6 +121,7 @@ export default function DashboardLayout() {
                   className={({ isActive }) =>
                     `dashboard-sidebar-link ${isActive ? "dashboard-sidebar-link--active" : ""}`
                   }
+                  onClick={closeSidebar}
                 >
                   <span className="dashboard-sidebar-icon" aria-hidden="true">
                     <SidebarIcon name={item.icon} />
@@ -99,6 +140,7 @@ export default function DashboardLayout() {
                 className={({ isActive }) =>
                   `dashboard-sidebar-link ${isActive ? "dashboard-sidebar-link--active" : ""}`
                 }
+                onClick={closeSidebar}
               >
                 <span className="dashboard-sidebar-icon" aria-hidden="true">
                   <SidebarIcon name={item.icon} />

@@ -1,7 +1,11 @@
 import api from "./axios";
 
-export async function createInvite(email) {
-  const { data } = await api.post("invites", { email }, { withCredentials: true });
+export async function createInvite(email, companyId, role) {
+  const { data } = await api.post(
+    "invites",
+    { email, companyId, role: role || "recruiter" },
+    { withCredentials: true }
+  );
   return data;
 }
 

@@ -19,13 +19,17 @@ const CLIENT_URL = process.env.CLIENT_URL;
 const CORS_ORIGINS = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
   : ["http://localhost:5173", "http://localhost:5176"];
+const COOKIE_SAMESITE = process.env.COOKIE_SAMESITE || process.env.COOKIE_SAME_SITE || (isProduction ? "none" : "lax");
+const COOKIE_SECURE = process.env.COOKIE_SECURE;
 
 const DEFAULT_COMPANY = process.env.DEFAULT_COMPANY || "Open Window Staffing";
 
 const PASSWORD_MIN_LENGTH = parseInt(process.env.PASSWORD_MIN_LENGTH, 10) || 8;
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const FROM_EMAIL = process.env.FROM_EMAIL || "onboarding@resend.dev";
+const EMAIL_FROM = process.env.EMAIL_FROM || process.env.FROM_EMAIL || "onboarding@resend.dev";
+const EMAIL_REPLY_TO = process.env.EMAIL_REPLY_TO || process.env.CONTACT_EMAIL;
+const FROM_EMAIL = EMAIL_FROM; // backward compat
 const COMPANY_NAME = process.env.DEFAULT_COMPANY || "Open Window Staffing";
 const CONTACT_EMAIL = process.env.CONTACT_EMAIL || process.env.FROM_EMAIL;
 
@@ -38,9 +42,16 @@ const STORAGE_ENDPOINT = process.env.STORAGE_ENDPOINT;
 const STORAGE_PUBLIC_URL_BASE = process.env.STORAGE_PUBLIC_URL_BASE;
 const STORAGE_PREFIX = process.env.STORAGE_PREFIX || "resumes";
 
+/* Document upload limits */
+const MAX_UPLOAD_SIZE_MB = parseInt(process.env.MAX_UPLOAD_SIZE_MB, 10) || 5;
+const ALLOWED_DOCUMENT_MIMES = (process.env.ALLOWED_DOCUMENT_MIMES || "application/pdf,image/jpeg,image/png").split(",").map((m) => m.trim()).filter(Boolean);
+
 module.exports = {
   isProduction,
   JWT_SECRET,
+  COOKIE_SAMESITE,
+  COOKIE_SECURE,
+  COOKIE_SAME_SITE: COOKIE_SAMESITE, // backward compat
   JWT_EXPIRES_IN,
   PORT,
   MONGODB_URI,
@@ -49,6 +60,8 @@ module.exports = {
   DEFAULT_COMPANY,
   PASSWORD_MIN_LENGTH,
   RESEND_API_KEY,
+  EMAIL_FROM,
+  EMAIL_REPLY_TO,
   FROM_EMAIL,
   COMPANY_NAME,
   CONTACT_EMAIL,
@@ -59,4 +72,6 @@ module.exports = {
   STORAGE_ENDPOINT,
   STORAGE_PUBLIC_URL_BASE,
   STORAGE_PREFIX,
+  MAX_UPLOAD_SIZE_MB,
+  ALLOWED_DOCUMENT_MIMES,
 };
