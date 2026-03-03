@@ -1,13 +1,43 @@
+const Assignment = require("../models/Assignment");
 const applicationService = require("../services/applicationService");
+const { getAccessibleCompanyIds } = require("../services/companyAccessService");
 const { sanitizeErrorMessage } = require("../utils/sanitizeError");
 const activityLogService = require("../services/activityLogService");
 
 exports.getAllApplications = async (req, res) => {
   try {
     const result = await applicationService.getApplicationsGrouped(req.user);
+    const companyIds = await getAccessibleCompanyIds(req.user._id.toString());
+    const allApps = result.applications || Object.values(result.byStatus || {}).flat();
+    const candidateIds = [...new Set(allApps.map((a) => (a.applicant?._id || a.applicant)?.toString?.()).filter(Boolean))];
+
+    let activeCandidateIds = new Set();
+    if (companyIds.length > 0 && candidateIds.length > 0) {
+      const active = await Assignment.find({
+        candidateId: { $in: candidateIds },
+        companyId: { $in: companyIds },
+        status: { $in: ["accepted", "active"] },
+      }).select("candidateId").lean();
+      active.forEach((a) => activeCandidateIds.add(a.candidateId?.toString()));
+    }
+
+    const addFlag = (app) => ({
+      ...app,
+      hasActiveAssignment: activeCandidateIds.has((app.applicant?._id || app.applicant)?.toString?.()),
+    });
+
+    const byStatus = {};
+    Object.keys(result.byStatus || {}).forEach((s) => {
+      byStatus[s] = (result.byStatus[s] || []).map(addFlag);
+    });
+
     res.status(200).json({
       success: true,
-      data: result,
+      data: {
+        ...result,
+        byStatus,
+        applications: (result.applications || []).map(addFlag),
+      },
     });
   } catch (error) {
     res.status(500).json({

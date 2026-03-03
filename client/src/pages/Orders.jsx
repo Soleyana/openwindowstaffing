@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getMyCompanies } from "../api/companies";
 import { requestInvoice } from "../api/invoices";
@@ -60,6 +61,9 @@ export default function Orders() {
         </a>
       </div>
 
+      <p style={{ marginBottom: "1rem" }}>
+        <Link to="/invoices">View Invoices</Link> — Generate invoices from approved timesheets.
+      </p>
       <div className="orders-invoice-section">
         <h2 className="orders-section-title">Request Invoice</h2>
         <p className="orders-section-desc">Submit a request to receive an invoice for your company.</p>

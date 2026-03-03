@@ -6,5 +6,6 @@ const documentUpload = require("../middleware/documentUpload");
 
 router.get("/:docId/download", requireAuth, documentController.downloadDocument);
 router.patch("/:docId/verify", requireAuth, requireRecruiter, documentController.verifyDocument);
+router.delete("/:docId", requireAuth, requireApplicant, documentController.deleteDocument);
 
 module.exports = router;

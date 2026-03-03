@@ -6,10 +6,16 @@ const { ROLES } = require("../constants/roles");
 const candidateService = require("../services/candidateService");
 const storageService = require("../services/storageService");
 const activityLogService = require("../services/activityLogService");
+const notificationService = require("../services/notificationService");
 const { sanitizeErrorMessage } = require("../utils/sanitizeError");
 const { DOCUMENT_TYPES } = require("../models/CandidateDocument");
 
 const uploadsDir = path.join(__dirname, "..", "uploads");
+
+function sanitizeFilename(name) {
+  if (typeof name !== "string") return "document";
+  return name.replace(/["/\\:*?<>|]/g, "_").replace(/\s+/g, "_").slice(0, 200) || "document";
+}
 
 /**
  * POST /api/candidates/me/documents - Applicant uploads document.
@@ -122,6 +128,15 @@ exports.verifyDocument = async (req, res) => {
       metadata: { userId: doc.userId.toString(), docType },
     });
 
+    await notificationService.create({
+      userId: doc.userId,
+      companyId: doc.companyId,
+      type: normalized === "verified" ? "document_verified" : "document_rejected",
+      title: humanMessage,
+      body: normalized === "rejected" && doc.rejectReason ? doc.rejectReason : undefined,
+      url: "/my-profile",
+    });
+
     res.status(200).json({ success: true, data: doc.toObject() });
   } catch (error) {
     res.status(500).json({
@@ -161,8 +176,9 @@ exports.downloadDocument = async (req, res) => {
     if (doc.storageProvider !== "local" && doc.fileKey) {
       const stream = await storageService.getStream(doc.fileKey);
       if (stream) {
-        res.setHeader("Content-Type", stream.ContentType || "application/pdf");
-        res.setHeader("Content-Disposition", `inline; filename="${doc.type}-${docId}.pdf"`);
+        res.setHeader("Content-Type", stream.ContentType || doc.mimeType || "application/octet-stream");
+        const fname = sanitizeFilename(doc.fileName || `${doc.type}-${docId}`);
+        res.setHeader("Content-Disposition", `attachment; filename="${fname}"`);
         return stream.Body.pipe(res);
       }
     }
@@ -172,13 +188,51 @@ exports.downloadDocument = async (req, res) => {
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ success: false, message: "File not found" });
     }
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename="${doc.type}-${docId}.pdf"`);
+    res.setHeader("Content-Type", doc.mimeType || "application/octet-stream");
+    const fname = sanitizeFilename(doc.fileName || `${doc.type}-${docId}`);
+    res.setHeader("Content-Disposition", `attachment; filename="${fname}"`);
     res.sendFile(path.resolve(filePath));
   } catch (error) {
     res.status(500).json({
       success: false,
       message: sanitizeErrorMessage(error, "Failed to download document"),
+    });
+  }
+};
+
+/**
+ * DELETE /api/documents/:docId - Applicant deletes own document.
+ */
+exports.deleteDocument = async (req, res) => {
+  try {
+    if (req.user.role !== ROLES.APPLICANT) {
+      return res.status(403).json({ success: false, message: "Applicants only" });
+    }
+
+    const { docId } = req.params;
+    const doc = await CandidateDocument.findById(docId);
+    if (!doc || doc.userId.toString() !== req.user._id.toString()) {
+      return res.status(404).json({ success: false, message: "Document not found" });
+    }
+
+    const actorName = (req.user.name || req.user.email || "Applicant").toString().trim();
+    await activityLogService.logFromReq(req, {
+      companyId: doc.companyId?.toString() || null,
+      targetType: "CandidateDocument",
+      targetId: docId,
+      actionType: "document_deleted",
+      message: `${doc.type || "Document"} deleted by ${actorName}`,
+      metadata: { userId: doc.userId.toString(), docType: doc.type },
+    });
+
+    await storageService.deleteFile(doc.fileUrl, { fileKey: doc.fileKey, storageProvider: doc.storageProvider });
+    await CandidateDocument.findByIdAndDelete(docId);
+
+    res.status(200).json({ success: true, message: "Document deleted" });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: sanitizeErrorMessage(error, "Failed to delete document"),
     });
   }
 };

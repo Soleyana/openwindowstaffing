@@ -1,17 +1,22 @@
 require("dotenv").config();
 
 const logger = require("./utils/logger");
+const { validateEnv } = require("./utils/validateEnv");
+
+/* Production config validator: fail-fast if required env missing/invalid */
+validateEnv({ logger });
 const express = require("express");
+const helmet = require("helmet");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const multer = require("multer");
 const requestIdMiddleware = require("./middleware/requestId");
-const { authLimiter, contactLimiter } = require("./middleware/rateLimiter");
+const { contactLimiter, clientErrorLimiter } = require("./middleware/rateLimiter");
 const { maybeRateLimit } = require("./middleware/maybeRateLimit");
 const path = require("path");
 const fs = require("fs");
 const connectDB = require("./config/db");
-const { CORS_ORIGINS, PORT } = require("./config/env");
+const { CORS_ORIGINS, PORT, isProduction, MAX_RESUME_SIZE_MB, MAX_CREDENTIAL_SIZE_MB } = require("./config/env");
 
 const uploadsDir = path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -34,28 +39,55 @@ const reportRoutes = require("./routes/reportRoutes");
 const invoiceRoutes = require("./routes/invoiceRoutes");
 const newsletterRoutes = require("./routes/newsletterRoutes");
 const testimonialRoutes = require("./routes/testimonialRoutes");
+const assignmentRoutes = require("./routes/assignmentRoutes");
+const timesheetRoutes = require("./routes/timesheetRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
+const adminRoutes = require("./routes/adminRoutes");
+const offerRoutes = require("./routes/offerRoutes");
+const contractRoutes = require("./routes/contractRoutes");
+const onboardingRoutes = require("./routes/onboardingRoutes");
+const securityRoutes = require("./routes/securityRoutes");
+const { csrfMiddleware } = require("./middleware/csrf");
 
 const app = express();
 
+/* Security headers - CSP minimal to avoid breaking API/JSON responses */
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
+
 app.use(requestIdMiddleware);
-const isProduction = process.env.NODE_ENV === "production";
+/* CORS: production must use explicit allowlist, never wildcard */
 const corsOrigin = CORS_ORIGINS.length > 0
   ? CORS_ORIGINS
   : isProduction
-    ? (process.env.CLIENT_URL ? [process.env.CLIENT_URL] : ["http://localhost:5173"])
+    ? (process.env.CLIENT_URL ? [process.env.CLIENT_URL] : [])
     : true;
+if (isProduction && (corsOrigin === true || (Array.isArray(corsOrigin) && corsOrigin.length === 0))) {
+  logger.warn("Production CORS: no explicit origins. Set CORS_ORIGINS or CLIENT_URL.");
+}
 app.use(cors({
   origin: corsOrigin,
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Request-Id", "X-CSRF-Token"],
 }));
 app.use((req, res, next) => {
-  logger.info({
-    requestId: req.requestId,
-    method: req.method,
-    url: req.url,
-  }, "request");
+  const start = Date.now();
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    const logPayload = {
+      requestId: req.requestId,
+      method: req.method,
+      route: req.originalUrl || req.url,
+      statusCode: res.statusCode,
+      durationMs: duration,
+    };
+    if (req.user?._id) logPayload.userId = req.user._id.toString();
+    if (req.companyIdResolved) logPayload.companyId = req.companyIdResolved.toString?.() || req.companyIdResolved;
+    logger.info(logPayload, `request ${req.method} ${req.originalUrl || req.url} ${res.statusCode} ${duration}ms`);
+  });
   next();
 });
 app.use(cookieParser());
@@ -63,6 +95,9 @@ const responseFormatter = require("./middleware/responseFormatter");
 app.use(responseFormatter);
 
 app.use(express.json());
+
+/* CSRF protection for /api state-changing routes (GET/HEAD/OPTIONS bypass) */
+app.use("/api", csrfMiddleware);
 
 /* Health checks */
 app.get("/", (req, res) => res.json({ status: "API running" }));
@@ -109,13 +144,44 @@ app.get("/api/health", async (req, res) => {
   }
 });
 
+/* Deployment health: ready = DB connected, live = process up */
+app.get("/api/health/ready", async (req, res) => {
+  try {
+    const mongoose = require("mongoose");
+    await mongoose.connection.db.admin().ping();
+    res.status(200).json({ ok: true, db: "connected" });
+  } catch (err) {
+    res.status(503).json({ ok: false, db: "disconnected" });
+  }
+});
+app.get("/api/health/live", (_, res) => res.status(200).json({ ok: true }));
+
+/* Client error reporting (rate limited) – minimal payload, no sensitive data */
+app.post("/api/client-errors", clientErrorLimiter, express.json(), (req, res) => {
+  const { route, message, stackSnippet } = req.body || {};
+  const safeRoute = typeof route === "string" ? route.slice(0, 500) : undefined;
+  const safeMessage = typeof message === "string" ? message.slice(0, 500) : undefined;
+  const safeStack = typeof stackSnippet === "string" ? stackSnippet.slice(0, 1000) : undefined;
+  if (safeRoute || safeMessage || safeStack) {
+    logger.warn({
+      requestId: req.requestId,
+      source: "client",
+      route: safeRoute,
+      message: safeMessage,
+      stackSnippet: safeStack,
+    }, "Client error reported");
+  }
+  res.status(202).json({ ok: true });
+});
+
 app.use("/uploads", express.static("uploads"));
-app.use("/api/auth", maybeRateLimit(authLimiter), authRoutes);
+app.use("/api/security", securityRoutes);
+app.use("/api/auth", authRoutes);
 app.use("/api/jobs", jobRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/invites", inviteRoutes);
 app.use("/api/recruiter", recruiterApplicationRoutes);
-app.use("/api/contact", maybeRateLimit(contactLimiter), contactRoutes);
+app.use("/api/contact", maybeRateLimit(contactLimiter, "/api/contact"), contactRoutes);
 app.use("/api/companies", companyRoutes);
 app.use("/api/facilities", facilityRoutes);
 app.use("/api/candidates", candidateRoutes);
@@ -129,29 +195,52 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/invoices", invoiceRoutes);
 app.use("/api/newsletter", newsletterRoutes);
 app.use("/api/testimonials", testimonialRoutes);
+app.use("/api/assignments", assignmentRoutes);
+app.use("/api/offers", offerRoutes);
+app.use("/api/contracts", contractRoutes);
+app.use("/api/onboarding", onboardingRoutes);
+app.use("/api/timesheets", timesheetRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/admin", adminRoutes);
 
 /* 404 – unknown routes */
 app.use((req, res) => {
   res.status(404).json({ success: false, message: "Route not found" });
 });
 
-/* Multer / upload errors */
+/* Multer / upload errors – 400 with requestId */
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === "LIMIT_FILE_SIZE") {
-      return res.status(400).json({ success: false, message: "File too large. Max 5MB." });
+      const isResume = (req.path || "").includes("/applications/submit");
+      const maxMb = isResume ? MAX_RESUME_SIZE_MB : MAX_CREDENTIAL_SIZE_MB;
+      const body = { success: false, message: `File too large. Max ${maxMb}MB.` };
+      if (req.requestId) body.requestId = req.requestId;
+      return res.status(400).json(body);
     }
-    return res.status(400).json({ success: false, message: err.message || "Upload error" });
+    const body = { success: false, message: err.message || "Upload error" };
+    if (req.requestId) body.requestId = req.requestId;
+    return res.status(400).json(body);
   }
-  if (err.message?.includes("Only PDF")) {
-    return res.status(400).json({ success: false, message: err.message });
+  if (err.message && (err.message.includes("Only ") || err.message.toLowerCase().includes("allowed"))) {
+    const body = { success: false, message: err.message };
+    if (req.requestId) body.requestId = req.requestId;
+    return res.status(400).json(body);
   }
   next(err);
 });
 
-/* 500 – server error handling */
+/* 500 – server error handling (dedicated error logger: stack in non-prod, message only in prod) */
 app.use((err, req, res, next) => {
-  logger.error({ err: { message: err.message, stack: err.stack } }, "Unhandled error");
+  const payload = { requestId: req.requestId, message: err.message || "Internal server error" };
+  if (req.user?._id) payload.userId = req.user._id.toString();
+  if (req.companyIdResolved) payload.companyId = (req.companyIdResolved.toString && req.companyIdResolved.toString()) || String(req.companyIdResolved);
+  payload.route = req.originalUrl || req.url;
+  payload.statusCode = 500;
+  if (!isProduction) {
+    payload.stack = err.stack;
+  }
+  logger.error(payload, "Unhandled error");
   const raw = (err.message || "").toLowerCase();
   const isDbError =
     raw.includes("bad auth") ||
@@ -161,10 +250,9 @@ app.use((err, req, res, next) => {
   const message = isDbError
     ? "Database connection error. Check MongoDB Atlas: Network Access (IP allowlist), username/password in .env, and that the password has no unencoded special characters."
     : (err.message || "Internal server error");
-  res.status(500).json({
-    success: false,
-    message,
-  });
+  const body = { success: false, message };
+  if (req.requestId) body.requestId = req.requestId;
+  res.status(500).json(body);
 });
 
 const ROUTE_PREFIXES = [
@@ -187,6 +275,8 @@ const ROUTE_PREFIXES = [
   "/api/invoices",
   "/api/newsletter",
   "/api/testimonials",
+  "/api/assignments",
+  "/api/timesheets",
 ];
 
 const startServer = async () => {

@@ -1,12 +1,14 @@
 /**
  * Compliance (Clear-to-Work) calculation based on CandidateDocument.
- * Required docs for cleared: License, BLS, TB, Background.
+ * Supports company-specific config and facility overrides.
  */
 const CandidateDocument = require("../models/CandidateDocument");
 const ComplianceReview = require("../models/ComplianceReview");
+const Company = require("../models/Company");
+const Facility = require("../models/Facility");
 
-const REQUIRED_DOC_TYPES = ["License", "BLS", "TB", "Background"];
-const EXPIRING_DAYS = 30;
+const DEFAULT_REQUIRED = ["License", "BLS", "TB", "Background"];
+const DEFAULT_EXPIRING_DAYS = 30;
 
 function normalizeStatus(s) {
   if (!s) return "pending";
@@ -15,12 +17,49 @@ function normalizeStatus(s) {
 }
 
 /**
- * Compute compliance status for a candidate.
- * @param {string|ObjectId} candidateId - User ID (applicant)
- * @param {string|ObjectId} [companyId] - Optional; used for lastReviewedAt lookup
- * @returns {Promise<{ status, missing, expiringSoon, verified, lastReviewedAt }>}
+ * Resolve required doc types for companyId + optional facilityId.
+ * @param {string} companyId
+ * @param {string|null} facilityId
+ * @returns {Promise<{ requiredTypes: string[], expiringSoonDays: number }>}
  */
-async function computeCompliance(candidateId, companyId = null) {
+async function getRequiredTypes(companyId, facilityId = null) {
+  let requiredTypes = [...DEFAULT_REQUIRED];
+  let expiringSoonDays = DEFAULT_EXPIRING_DAYS;
+
+  if (companyId) {
+    const company = await Company.findById(companyId).select("complianceConfig").lean();
+    if (company?.complianceConfig) {
+      const cfg = company.complianceConfig;
+      if (cfg.requiredTypes?.length) requiredTypes = [...cfg.requiredTypes];
+      if (typeof cfg.expiringSoonDays === "number" && cfg.expiringSoonDays > 0) {
+        expiringSoonDays = cfg.expiringSoonDays;
+      }
+    }
+  }
+
+  if (facilityId) {
+    const facility = await Facility.findById(facilityId).select("complianceOverrides").lean();
+    if (facility?.complianceOverrides?.requiredTypes?.length) {
+      requiredTypes = [...facility.complianceOverrides.requiredTypes];
+    }
+  }
+
+  return { requiredTypes, expiringSoonDays };
+}
+
+/**
+ * Compute compliance status for a candidate.
+ * @param {string|ObjectId} candidateId
+ * @param {string|ObjectId} [companyId] - For config and lastReviewedAt
+ * @param {string|ObjectId} [facilityId] - For facility-specific overrides
+ * @returns {Promise<{ status, missing, expiringSoon, verified, lastReviewedAt, requiredTypes }>}
+ */
+async function computeCompliance(candidateId, companyId = null, facilityId = null) {
+  const { requiredTypes, expiringSoonDays } = await getRequiredTypes(
+    companyId?.toString?.() ?? companyId,
+    facilityId?.toString?.() ?? facilityId
+  );
+
   const docs = await CandidateDocument.find({ userId: candidateId })
     .select("type verifiedStatus expiresAt")
     .lean();
@@ -36,7 +75,7 @@ async function computeCompliance(candidateId, companyId = null) {
   });
 
   const now = new Date();
-  const expiringThreshold = new Date(now.getTime() + EXPIRING_DAYS * 24 * 60 * 60 * 1000);
+  const expiringThreshold = new Date(now.getTime() + expiringSoonDays * 24 * 60 * 60 * 1000);
 
   const missing = [];
   const expiringSoon = [];
@@ -44,7 +83,7 @@ async function computeCompliance(candidateId, companyId = null) {
 
   let hasRejected = false;
 
-  for (const type of REQUIRED_DOC_TYPES) {
+  for (const type of requiredTypes) {
     const list = byType[type] || [];
     const best = list
       .filter((d) => d.verifiedStatus === "verified")
@@ -54,12 +93,8 @@ async function computeCompliance(candidateId, companyId = null) {
     if (hasRejectedForType) hasRejected = true;
 
     if (!best) {
-      if (hasRejectedForType) {
-        // Rejected counts as blocked; include in missing for clarity
-        missing.push(type);
-      } else {
-        missing.push(type);
-      }
+      if (hasRejectedForType) missing.push(type);
+      else missing.push(type);
       continue;
     }
 
@@ -73,10 +108,9 @@ async function computeCompliance(candidateId, companyId = null) {
     }
   }
 
-  // Non-required verified docs
   const allTypes = [...new Set(docs.map((d) => d.type))];
   allTypes.forEach((type) => {
-    if (REQUIRED_DOC_TYPES.includes(type)) return;
+    if (requiredTypes.includes(type)) return;
     const list = (byType[type] || []).filter((d) => d.verifiedStatus === "verified");
     if (list.length > 0) verified.push(type);
   });
@@ -91,13 +125,9 @@ async function computeCompliance(candidateId, companyId = null) {
   }
 
   let status = "cleared";
-  if (hasRejected) {
-    status = "blocked";
-  } else if (missing.length > 0) {
-    status = "missing";
-  } else if (expiringSoon.length > 0) {
-    status = "expiring";
-  }
+  if (hasRejected) status = "blocked";
+  else if (missing.length > 0) status = "missing";
+  else if (expiringSoon.length > 0) status = "expiring";
 
   return {
     status,
@@ -105,17 +135,21 @@ async function computeCompliance(candidateId, companyId = null) {
     expiringSoon,
     verified,
     lastReviewedAt,
+    requiredTypes,
   };
 }
 
 /**
- * Compute compliance for multiple candidates (batch, for pipeline).
- * @param {string[]} candidateIds - User IDs
- * @param {string} companyId - Required for recruiter access
+ * Compute compliance for multiple candidates (batch).
+ * @param {string[]} candidateIds
+ * @param {string} companyId
+ * @param {string|null} [facilityId]
  * @returns {Promise<Record<string, { status, missing?, expiringSoon? }>>}
  */
-async function computeComplianceBatch(candidateIds, companyId) {
+async function computeComplianceBatch(candidateIds, companyId, facilityId = null) {
   if (!candidateIds?.length) return {};
+
+  const { requiredTypes, expiringSoonDays } = await getRequiredTypes(companyId, facilityId);
 
   const results = {};
   const docs = await CandidateDocument.find({
@@ -132,6 +166,9 @@ async function computeComplianceBatch(candidateIds, companyId) {
     byUser[uid].push(d);
   });
 
+  const now = new Date();
+  const expiringThreshold = new Date(now.getTime() + expiringSoonDays * 24 * 60 * 60 * 1000);
+
   for (const cid of candidateIds) {
     const uid = cid.toString?.() || cid;
     const userDocs = byUser[uid] || [];
@@ -145,13 +182,11 @@ async function computeComplianceBatch(candidateIds, companyId) {
       });
     });
 
-    const now = new Date();
-    const expiringThreshold = new Date(now.getTime() + EXPIRING_DAYS * 24 * 60 * 60 * 1000);
     const missing = [];
     const expiringSoon = [];
     let hasRejected = false;
 
-    for (const type of REQUIRED_DOC_TYPES) {
+    for (const type of requiredTypes) {
       const list = byType[type] || [];
       const hasRej = list.some((d) => d.verifiedStatus === "rejected");
       if (hasRej) hasRejected = true;
@@ -183,5 +218,6 @@ async function computeComplianceBatch(candidateIds, companyId) {
 module.exports = {
   computeCompliance,
   computeComplianceBatch,
-  REQUIRED_DOC_TYPES,
+  getRequiredTypes,
+  REQUIRED_DOC_TYPES: DEFAULT_REQUIRED,
 };

@@ -1,5 +1,6 @@
 import { Component } from "react";
 import { Link } from "react-router-dom";
+import { reportClientError } from "../lib/reportClientError";
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -12,7 +13,7 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error("App error:", error, errorInfo);
+    reportClientError(error, errorInfo);
   }
 
   render() {

@@ -32,44 +32,52 @@ const COMPLIANCE_BADGE = {
   blocked: "badge-compliance-blocked",
 };
 
-function ApplicantCardInner({ app, onStatusChange, onSelect, complianceStatus }) {
+function ApplicantCardInner({ app, onStatusChange, onSelect, complianceStatus, isWithdrawn, hasActiveAssignment }) {
   const [open, setOpen] = useState(false);
   const applicantName = [app.firstName, app.lastName].filter(Boolean).join(" ") || app.email || "—";
 
   return (
-    <div className="pipeline-card" onClick={() => onSelect(app)} role="button" tabIndex={0} onKeyDown={(e) => e.key === "Enter" && onSelect(app)}>
+    <div className={`pipeline-card ${isWithdrawn ? "pipeline-card-withdrawn" : ""}`} onClick={() => onSelect(app)} role="button" tabIndex={0} onKeyDown={(e) => e.key === "Enter" && onSelect(app)}>
       <div className="pipeline-card-header">
         <strong className="pipeline-card-name">{applicantName}</strong>
-        <div className="pipeline-card-actions">
-          <button
-            type="button"
-            className="pipeline-card-dropdown-btn"
-            onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-            aria-label="Change status"
-            aria-expanded={open}
-          >
-            ⋮
-          </button>
-          {open && (
-            <>
-              <div className="pipeline-card-dropdown-backdrop" onClick={(e) => { e.stopPropagation(); setOpen(false); }} aria-hidden="true" />
-              <div className="pipeline-card-dropdown" onClick={(e) => e.stopPropagation()}>
-                {PIPELINE_STATUSES.filter((s) => s !== app.status).map((status) => (
-                  <button
-                    key={status}
-                    type="button"
-                    onClick={() => {
-                      onStatusChange(app._id, status);
-                      setOpen(false);
-                    }}
-                  >
-                    {PIPELINE_COLUMN_LABELS[status]}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+        {isWithdrawn && (
+          <span className="badge badge-withdrawn" style={{ fontSize: "0.7rem", marginLeft: "0.25rem" }}>Withdrawn</span>
+        )}
+        {hasActiveAssignment && !isWithdrawn && (
+          <span className="badge badge-compliance-cleared" style={{ fontSize: "0.7rem", marginLeft: "0.25rem" }}>Active Assignment</span>
+        )}
+        {!isWithdrawn && (
+          <div className="pipeline-card-actions">
+            <button
+              type="button"
+              className="pipeline-card-dropdown-btn"
+              onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+              aria-label="Change status"
+              aria-expanded={open}
+            >
+              ⋮
+            </button>
+            {open && (
+              <>
+                <div className="pipeline-card-dropdown-backdrop" onClick={(e) => { e.stopPropagation(); setOpen(false); }} aria-hidden="true" />
+                <div className="pipeline-card-dropdown" onClick={(e) => e.stopPropagation()}>
+                  {PIPELINE_STATUSES.filter((s) => s !== app.status && s !== "withdrawn").map((status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => {
+                        onStatusChange(app._id, status);
+                        setOpen(false);
+                      }}
+                    >
+                      {PIPELINE_COLUMN_LABELS[status]}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
       <div className="pipeline-card-job">{app.jobTitle || app.job?.title || "—"}</div>
       {complianceStatus && (
@@ -85,13 +93,19 @@ function ApplicantCardInner({ app, onStatusChange, onSelect, complianceStatus })
 }
 
 function DraggableApplicantCard({ app, onStatusChange, onSelect, complianceStatus }) {
+  const isWithdrawn = app.status === "withdrawn";
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: app._id,
     data: { app },
+    disabled: isWithdrawn,
   });
   return (
-    <div ref={setNodeRef} {...listeners} {...attributes} className={`pipeline-card-wrapper ${isDragging ? "pipeline-card-dragging" : ""}`}>
-      <ApplicantCardInner app={app} onStatusChange={onStatusChange} onSelect={onSelect} complianceStatus={complianceStatus} />
+    <div
+      ref={setNodeRef}
+      {...(isWithdrawn ? {} : { ...listeners, ...attributes })}
+      className={`pipeline-card-wrapper ${isDragging ? "pipeline-card-dragging" : ""} ${isWithdrawn ? "pipeline-card-wrapper-withdrawn" : ""}`}
+    >
+      <ApplicantCardInner app={app} onStatusChange={onStatusChange} onSelect={onSelect} complianceStatus={complianceStatus} isWithdrawn={isWithdrawn} hasActiveAssignment={app.hasActiveAssignment} />
     </div>
   );
 }

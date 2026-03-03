@@ -55,7 +55,6 @@ const inviteSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-inviteSchema.index({ tokenHash: 1 });
 inviteSchema.index({ email: 1, used: 1 });
 inviteSchema.index({ expiresAt: 1 });
 

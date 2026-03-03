@@ -13,6 +13,7 @@ export const PIPELINE_STATUSES = [
   "placed",
   "assignment_completed",
   "rejected",
+  "withdrawn",
 ];
 
 export const PIPELINE_COLUMN_LABELS = {
@@ -25,6 +26,7 @@ export const PIPELINE_COLUMN_LABELS = {
   placed: "Placed",
   assignment_completed: "Completed",
   rejected: "Rejected",
+  withdrawn: "Withdrawn",
 };
 
 export const APPLICANT_STATUSES = {
@@ -44,6 +46,7 @@ export const LEGACY_TO_PIPELINE = {
   interview: "interview_scheduled",
   hired: "placed",
   rejected: "rejected",
+  withdrawn: "withdrawn",
 };
 
 export function toPipelineStatus(status) {

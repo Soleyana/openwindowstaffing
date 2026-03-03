@@ -69,6 +69,8 @@ const applicationSchema = new mongoose.Schema({
     enum: ALLOWED_STATUSES,
     default: DEFAULT_STATUS,
   },
+  withdrawnAt: { type: Date },
+  withdrawReason: { type: String },
   recruiterNotes: {
     type: [recruiterNoteSchema],
     default: [],

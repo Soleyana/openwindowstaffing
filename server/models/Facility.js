@@ -36,6 +36,9 @@ const facilitySchema = new mongoose.Schema(
       enum: ["active", "inactive"],
       default: "active",
     },
+    complianceOverrides: {
+      requiredTypes: { type: [String] },
+    },
   },
   { timestamps: true }
 );

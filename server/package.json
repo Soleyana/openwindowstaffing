@@ -7,7 +7,8 @@
     "dev": "nodemon index.js",
     "seed": "node seedJobs.js",
     "seed:full": "node scripts/seed.js",
-    "test": "cross-env NODE_ENV=test node --test tests/api.test.js"
+    "test:server": "cross-env NODE_ENV=test node index.js",
+    "test": "concurrently -k -s first \"cross-env NODE_ENV=test node index.js\" \"wait-on http://localhost:5000/api/status -t 30000 && cross-env NODE_ENV=test node --test tests/validateEnv.test.js tests/api.test.js\""
   },
   "keywords": [],
   "author": "",
@@ -15,13 +16,14 @@
   "type": "commonjs",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1000.0",
-    "agenda": "^6.2.3",
+    "agenda": "^4.4.0",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.2.1",
     "multer": "^2.0.2",
@@ -31,8 +33,10 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
-    "nodemon": "^3.1.11"
+    "nodemon": "^3.1.11",
+    "wait-on": "^8.0.1"
   },
   "description": ""
 }

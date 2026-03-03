@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const TARGET_TYPES = ["Application", "Candidate", "Job", "Document", "CandidateDocument", "Invite", "Company", "Facility", "MessageThread", "Message", "InvoiceRequest", "Contact", "User", "Testimonial"];
+const TARGET_TYPES = ["Application", "Candidate", "Job", "Document", "CandidateDocument", "Invite", "Company", "Facility", "MessageThread", "Message", "InvoiceRequest", "Contact", "User", "Testimonial", "Assignment", "Timesheet", "Invoice", "Offer", "Contract"];
 const ACTION_TYPES = [
   "created",
   "updated",
@@ -29,6 +29,32 @@ const ACTION_TYPES = [
   "testimonial_rejected",
   "testimonial_hidden",
   "testimonial_deleted",
+  "document_deleted",
+  "application_withdrawn",
+  "assignment_created",
+  "assignment_offered",
+  "assignment_accepted",
+  "assignment_activated",
+  "assignment_completed",
+  "assignment_cancelled",
+  "timesheet_created",
+  "timesheet_submitted",
+  "timesheet_approved",
+  "timesheet_rejected",
+  "invoice_generated",
+  "invoice_issued",
+  "invoice_marked_paid",
+  "invoice_paid",
+  "invoice_voided",
+  "timesheet_paid",
+  "compliance_expiring_notice_sent",
+  "offer_created",
+  "offer_sent",
+  "offer_accepted",
+  "offer_declined",
+  "offer_withdrawn",
+  "contract_sent",
+  "contract_signed",
 ];
 
 const activityLogSchema = new mongoose.Schema(

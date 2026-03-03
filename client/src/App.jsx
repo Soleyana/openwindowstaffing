@@ -20,6 +20,13 @@ import AcceptInvite from "./pages/AcceptInvite";
 import JobDetail from "./pages/JobDetail";
 import ApplyJob from "./pages/ApplyJob";
 import MyApplications from "./pages/MyApplications";
+import MyAssignments from "./pages/MyAssignments";
+import MyOffers from "./pages/MyOffers";
+import MyContracts from "./pages/MyContracts";
+import ContractSign from "./pages/ContractSign";
+import Onboarding from "./pages/Onboarding";
+import Timesheets from "./pages/Timesheets";
+import TimesheetsInbox from "./pages/TimesheetsInbox";
 import MyJobs from "./pages/MyJobs";
 import Dashboard from "./pages/Dashboard";
 import RecruiterDashboard from "./pages/RecruiterDashboard";
@@ -35,6 +42,9 @@ import Reviews from "./pages/Reviews";
 import ManageTestimonials from "./pages/ManageTestimonials";
 import StaffingRequests from "./pages/StaffingRequests";
 import Orders from "./pages/Orders";
+import Invoices from "./pages/Invoices";
+import Notifications from "./pages/Notifications";
+import Admin from "./pages/Admin";
 import About from "./pages/About";
 import FAQ from "./pages/FAQ";
 import Contact from "./pages/Contact";
@@ -62,7 +72,7 @@ function RouteFallback({ label = "Loading…" }) {
   );
 }
 
-const DASHBOARD_PATHS = ["/dashboard", "/recruiter-dashboard", "/my-jobs", "/my-companies", "/listing-reports", "/orders", "/post-job", "/my-applications", "/account-settings", "/applicant-pipeline", "/invite-recruiter", "/inbox", "/staffing-requests", "/candidates", "/candidate", "/dashboard/companies/manage", "/dashboard/facilities", "/dashboard/testimonials"];
+const DASHBOARD_PATHS = ["/dashboard", "/recruiter-dashboard", "/onboarding", "/notifications", "/admin", "/my-jobs", "/my-companies", "/listing-reports", "/orders", "/post-job", "/my-applications", "/my-assignments", "/my-offers", "/my-contracts", "/contract", "/timesheets", "/timesheets-inbox", "/invoices", "/account-settings", "/applicant-pipeline", "/invite-recruiter", "/inbox", "/staffing-requests", "/candidates", "/candidate", "/dashboard/companies/manage", "/dashboard/facilities", "/dashboard/testimonials"];
 
 function AppContent() {
   const location = useLocation();
@@ -102,6 +112,14 @@ function AppContent() {
               <Route path="/applicant-pipeline" element={<ProtectedRoute roles={["recruiter", "owner"]}><Suspense fallback={<RouteFallback />}><ApplicantPipeline /></Suspense></ProtectedRoute>} />
               <Route path="/my-jobs" element={<MyJobs />} />
               <Route path="/my-applications" element={<MyApplications />} />
+              <Route path="/my-assignments" element={<MyAssignments />} />
+              <Route path="/my-offers" element={<MyOffers />} />
+              <Route path="/my-contracts" element={<MyContracts />} />
+              <Route path="/contract/:id/sign" element={<ContractSign />} />
+              <Route path="/onboarding" element={<Onboarding />} />
+              <Route path="/timesheets" element={<Timesheets />} />
+              <Route path="/timesheets-inbox" element={<ProtectedRoute roles={["recruiter", "owner"]}><TimesheetsInbox /></ProtectedRoute>} />
+              <Route path="/invoices" element={<ProtectedRoute roles={["recruiter", "owner"]}><Invoices /></ProtectedRoute>} />
               <Route path="/my-profile" element={<MyProfile />} />
               <Route path="/inbox" element={<Suspense fallback={<RouteFallback label="Loading inbox…" />}><ErrorBoundary fallbackLabel="Inbox"><Inbox /></ErrorBoundary></Suspense>} />
               <Route path="/candidates" element={<ProtectedRoute roles={["recruiter", "owner"]}><CandidateSearch /></ProtectedRoute>} />
@@ -116,6 +134,7 @@ function AppContent() {
               <Route path="/post-job" element={<PostJob />} />
               <Route path="/invite-recruiter" element={<ProtectedRoute roles={["owner"]}><InviteRecruiter /></ProtectedRoute>} />
               <Route path="/account-settings" element={<AccountSettings />} />
+              <Route path="/notifications" element={<Notifications />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

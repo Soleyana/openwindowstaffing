@@ -25,6 +25,5 @@ const newsletterSubscriptionSchema = new mongoose.Schema(
 );
 
 newsletterSubscriptionSchema.index({ email: 1 });
-newsletterSubscriptionSchema.index({ unsubscribeToken: 1 });
 
 module.exports = mongoose.model("NewsletterSubscription", newsletterSubscriptionSchema);

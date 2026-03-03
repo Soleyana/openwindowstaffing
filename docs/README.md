@@ -76,18 +76,43 @@ Requires `MONGODB_URI`. Jobs are stored in `agendaJobs` collection.
 
 ## Production Launch
 
-### Required Environment Variables
+The server validates required env at startup. In production, missing or invalid config causes immediate exit with an error message. In dev/test, validation issues are logged as warnings only.
 
-**Server (all required in production):**
+### Required Environment Variables (Production)
+
+**Server (all required when NODE_ENV=production):**
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `MONGODB_URI` | MongoDB connection string | `mongodb+srv://user:pass@cluster.mongodb.net/db` |
+| `JWT_SECRET` | Strong random secret (min 32 chars); must NOT be the default dev value | `openssl rand -base64 48` |
+| `CORS_ORIGINS` | Comma-separated allowlist of frontend origins; no `*` | `https://app.example.com,https://www.example.com` |
+| `COOKIE_SECURE` | Must be `true` when using cross-site cookies | `true` |
+| `COOKIE_SAMESITE` | `none` for cross-site; `lax` for same-origin | `none` |
+
+**When RESEND_API_KEY is set** (emails enabled), also require:
 
 | Variable | Description |
 |----------|-------------|
-| `MONGODB_URI` | MongoDB connection string |
-| `JWT_SECRET` | Strong random secret (min 32 chars) |
-| `CLIENT_URL` | Full frontend URL (e.g. https://app.example.com) |
-| `CORS_ORIGINS` | Comma-separated list of allowed origins |
+| `EMAIL_FROM` | Verified sender for Resend (not `onboarding@resend.dev`) |
+| `EMAIL_REPLY_TO` | Optional; used for contact and invoice emails |
 
-**Cookie & CORS for same-site vs cross-site:**
+### Example Production `.env`
+
+```bash
+NODE_ENV=production
+MONGODB_URI=mongodb+srv://...
+JWT_SECRET=your-strong-random-secret-min-32-chars
+CORS_ORIGINS=https://app.example.com
+COOKIE_SECURE=true
+COOKIE_SAMESITE=none
+CLIENT_URL=https://app.example.com
+RESEND_API_KEY=re_...
+EMAIL_FROM=noreply@yourdomain.com
+CONTACT_EMAIL=support@yourdomain.com
+```
+
+### Cookie & CORS for same-site vs cross-site
 
 | Deployment | CORS_ORIGINS | COOKIE_SAMESITE | COOKIE_SECURE |
 |------------|--------------|-----------------|---------------|
@@ -95,15 +120,6 @@ Requires `MONGODB_URI`. Jobs are stored in `agendaJobs` collection.
 | Cross origin (e.g. api.example.com + app.other.com) | `https://app.other.com` | `none` | `true` |
 
 For cross-site cookies (different domains): `COOKIE_SAMESITE=none` and `COOKIE_SECURE=true` are required. Both frontend and backend must use HTTPS.
-
-**Email deliverability:**
-
-| Variable | Description |
-|----------|-------------|
-| `EMAIL_FROM` | Verified sender address for Resend (e.g. noreply@yourdomain.com) |
-| `EMAIL_REPLY_TO` | Optional; used for contact and invoice emails |
-| `RESEND_API_KEY` | Resend API key |
-| `CONTACT_EMAIL` | Recipient for contact form, invoice requests |
 
 ### Diagnostics (Development Only)
 

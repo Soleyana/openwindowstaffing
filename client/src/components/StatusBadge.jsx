@@ -20,10 +20,11 @@ function PipelineStatusBadge({ status }) {
 
 /** For applicant views: shows simplified status */
 function ApplicantStatusBadge({ status }) {
-  const safeStatus = APPLICANT_OPTIONS.includes(status) ? status : APPLICANT_STATUSES.APPLIED;
+  const displayStatus = status === "withdrawn" ? "Withdrawn" : (APPLICANT_OPTIONS.includes(status) ? status : APPLICANT_STATUSES.APPLIED);
+  const safeStatus = (status === "withdrawn" ? "withdrawn" : (APPLICANT_OPTIONS.includes(status) ? status : APPLICANT_STATUSES.APPLIED)).replace(/\s+/g, "-");
   return (
-    <span className={`status-badge status-${safeStatus.replace(/\s+/g, "-")}`}>
-      {status || APPLICANT_STATUSES.APPLIED}
+    <span className={`status-badge status-${safeStatus}`}>
+      {displayStatus}
     </span>
   );
 }

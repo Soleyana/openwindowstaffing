@@ -22,6 +22,7 @@ Pre-requisite: Run `cd server && npm run seed:full` then `cd server && npm run d
 - [ ] **Job detail** – Click job; Apply CTA visible; save/unsave works
 - [ ] **Apply** – Submit application with resume upload; success toast; application appears in My Applications
 - [ ] **My Applications** – List of applications with status; link to job
+- [ ] **Withdraw Application** – Candidate → My Applications → Withdraw an active application → shows Withdrawn badge; button disappears; recruiter pipeline shows Withdrawn badge and card is read-only
 - [ ] **My Profile** – Edit profile; upload Resume/License/BLS/etc.; documents show status
 - [ ] **Job Alerts** – Subscribe; receive confirmation
 

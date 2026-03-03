@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { getMyProfile, updateMyProfile, uploadDocument } from "../api/candidates";
-import { downloadDocument } from "../api/documents";
+import { downloadDocument, deleteDocument } from "../api/documents";
 import { getCandidateCompliance } from "../api/compliance";
+import { getMyAssignments } from "../api/assignments";
 import { DOCUMENT_TYPES } from "../constants/documentTypes";
 
 const COMPLIANCE_BADGE_CLASS = {
@@ -24,6 +25,8 @@ export default function MyProfile() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [downloadingDocId, setDownloadingDocId] = useState(null);
+  const [deletingDocId, setDeletingDocId] = useState(null);
 
   function handleChoose(type) {
     setDocType(type);
@@ -37,7 +40,16 @@ export default function MyProfile() {
   async function loadCompliance() {
     if (user?.role !== "applicant") return;
     try {
-      const comp = await getCandidateCompliance("me");
+      let companyId = null;
+      let facilityId = null;
+      const assignRes = await getMyAssignments();
+      const assignments = assignRes.data || [];
+      const active = assignments.find((a) => ["accepted", "active"].includes(a.status));
+      if (active) {
+        companyId = active.companyId?._id || active.companyId;
+        facilityId = active.facilityId?._id || active.facilityId;
+      }
+      const comp = await getCandidateCompliance("me", companyId, facilityId);
       setCompliance(comp);
     } catch {
       setCompliance(null);
@@ -102,9 +114,39 @@ export default function MyProfile() {
       await loadProfile(true);
       await loadCompliance();
     } catch (err) {
-      showToast(err.response?.data?.message || "Upload failed", "error");
+      const d = err.response?.data || {};
+      const msg = d.message || "Upload failed";
+      showToast(d.requestId ? `${msg} (ID: ${d.requestId})` : msg, "error");
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function handleDownload(doc) {
+    if (!doc?._id) return;
+    setDownloadingDocId(doc._id);
+    try {
+      await downloadDocument(doc._id, doc.fileName, (msg, reqId) => {
+        showToast(reqId ? `${msg} (${reqId})` : msg, "error");
+      });
+    } finally {
+      setDownloadingDocId(null);
+    }
+  }
+
+  async function handleDelete(doc) {
+    if (!doc?._id) return;
+    if (!window.confirm("Are you sure you want to delete this document? You can upload a new one afterwards.")) return;
+    setDeletingDocId(doc._id);
+    try {
+      await deleteDocument(doc._id);
+      showToast("Document deleted", "success");
+      await loadProfile(true);
+      await loadCompliance();
+    } catch (err) {
+      showToast(err.response?.data?.message || "Failed to delete document", "error");
+    } finally {
+      setDeletingDocId(null);
     }
   }
 
@@ -136,7 +178,9 @@ export default function MyProfile() {
         <div className="card" style={{ marginBottom: "1.5rem" }}>
           <h3>Compliance Status</h3>
           <p className="text-muted" style={{ marginBottom: "0.5rem" }}>
-            Upload required credentials (License, BLS, TB, Background) to be cleared for work.
+            {compliance.requiredTypes?.length
+              ? `Required: ${compliance.requiredTypes.join(", ")}`
+              : "Upload required credentials (License, BLS, TB, Background) to be cleared for work."}
           </p>
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
             <span className={`badge ${COMPLIANCE_BADGE_CLASS[compliance.status] || "badge"}`} style={{ textTransform: "capitalize" }}>
@@ -286,14 +330,28 @@ export default function MyProfile() {
                   <td>{d.uploadedAt ? new Date(d.uploadedAt).toLocaleDateString() : "—"}</td>
                   <td>{d.expiresAt ? new Date(d.expiresAt).toLocaleDateString() : "—"}</td>
                   <td>
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      style={{ padding: "0.25rem 0.5rem", fontSize: "0.85rem" }}
-                      onClick={() => downloadDocument(d._id, d.fileName)}
-                    >
-                      Download
-                    </button>
+                    {d._id && (
+                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          style={{ padding: "0.25rem 0.5rem", fontSize: "0.85rem" }}
+                          disabled={downloadingDocId === d._id}
+                          onClick={() => handleDownload(d)}
+                        >
+                          {downloadingDocId === d._id ? "Downloading…" : "Download"}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          style={{ padding: "0.25rem 0.5rem", fontSize: "0.85rem", color: "var(--error, #c33)" }}
+                          disabled={deletingDocId === d._id}
+                          onClick={() => handleDelete(d)}
+                        >
+                          {deletingDocId === d._id ? "Deleting…" : "Delete"}
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

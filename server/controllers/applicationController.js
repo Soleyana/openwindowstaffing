@@ -519,6 +519,59 @@ exports.getMyApplications = async (req, res) => {
 
 const { ALLOWED_STATUSES, isValidPipelineStatus } = require("../constants/applicationStatuses");
 
+/**
+ * PATCH /api/applications/:id/withdraw - Applicant withdraws own application.
+ */
+exports.withdrawApplication = async (req, res) => {
+  try {
+    if (req.user.role !== ROLES.APPLICANT) {
+      return res.status(403).json({ success: false, message: "Applicants only" });
+    }
+
+    const { id } = req.params;
+    const application = await Application.findById(id);
+    if (!application || application.applicant?.toString() !== req.user._id.toString()) {
+      return res.status(404).json({ success: false, message: "Application not found" });
+    }
+
+    if (application.status === "withdrawn") {
+      return res.status(200).json({
+        success: true,
+        message: "Already withdrawn",
+        data: application,
+      });
+    }
+
+    const reason = (req.body.reason || "").trim().slice(0, 500);
+    application.status = "withdrawn";
+    application.withdrawnAt = new Date();
+    application.withdrawReason = reason || undefined;
+    application.lastUpdatedAt = new Date();
+    await application.save();
+
+    const actorName = (req.user.name || req.user.email || "Applicant").toString().trim();
+    await activityLogService.logFromReq(req, {
+      companyId: application.companyId?.toString() || null,
+      targetType: "Application",
+      targetId: id,
+      actionType: "application_withdrawn",
+      message: `Application withdrawn by ${actorName}`,
+      metadata: { applicant: req.user._id.toString(), jobId: application.jobId?.toString() },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Application withdrawn",
+      data: application,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: sanitizeErrorMessage(error, "Failed to withdraw application"),
+    });
+  }
+};
+
 exports.updateApplicationStatus = async (req, res) => {
   try {
     const { id } = req.params;

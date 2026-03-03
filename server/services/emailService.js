@@ -3,7 +3,7 @@
  * Logs via logger when no key (dev). Never crashes on send failure.
  * Uses EMAIL_FROM and optionally EMAIL_REPLY_TO from env.
  */
-const { RESEND_API_KEY, EMAIL_FROM, EMAIL_REPLY_TO, COMPANY_NAME, CLIENT_URL } = require("../config/env");
+const { RESEND_API_KEY, EMAIL_FROM, EMAIL_REPLY_TO, COMPANY_NAME, CLIENT_URL, EMAIL_DISABLED } = require("../config/env");
 const logger = require("../utils/logger");
 
 let resendClient = null;
@@ -28,6 +28,11 @@ async function sendEmail(to, subject, html, opts = {}) {
   if (!to || typeof to !== "string" || !to.includes("@")) {
     logger.warn({ to }, "[Email] Invalid recipient");
     return false;
+  }
+
+  if (EMAIL_DISABLED) {
+    logger.info({ to, subject }, "[Email] Disabled (EMAIL_DISABLED=true) – would send");
+    return true;
   }
 
   if (!resendClient) {
@@ -153,6 +158,46 @@ async function sendJobAlertsDigest(subscriberEmail, jobs, keywords) {
   return sendEmail(subscriberEmail, subject, html);
 }
 
+/** Job offer email to candidate (Offer model - links to My Offers) */
+async function sendOfferToCandidate(candidateEmail, candidateName, jobTitle) {
+  const baseUrl = CLIENT_URL || "http://localhost:5173";
+  const offersUrl = `${baseUrl}/my-offers`;
+  const subject = `Job offer – ${jobTitle}`;
+  const html = `
+    <p>Hi ${escapeHtml(candidateName || "there")},</p>
+    <p>You have been offered a position for <strong>${escapeHtml(jobTitle || "the role")}</strong>.</p>
+    <p><a href="${escapeHtml(offersUrl)}">View and respond to your offer</a></p>
+    <p>— ${escapeHtml(COMPANY_NAME)}</p>
+  `;
+  return sendEmail(candidateEmail, subject, html);
+}
+
+/** Assignment offer email to candidate */
+async function sendAssignmentOffer(candidateEmail, candidateName, jobTitle, assignmentId) {
+  const baseUrl = CLIENT_URL || "http://localhost:5173";
+  const acceptUrl = `${baseUrl}/my-assignments?offer=${assignmentId}`;
+  const subject = `Job offer – ${jobTitle}`;
+  const html = `
+    <p>Hi ${escapeHtml(candidateName || "there")},</p>
+    <p>You have been offered a position for <strong>${escapeHtml(jobTitle || "the role")}</strong>.</p>
+    <p><a href="${escapeHtml(acceptUrl)}">View and accept this offer</a></p>
+    <p>— ${escapeHtml(COMPANY_NAME)}</p>
+  `;
+  return sendEmail(candidateEmail, subject, html);
+}
+
+/** Contract signing link to candidate */
+async function sendContractToCandidate(candidateEmail, candidateName, jobTitle, contractSignUrl) {
+  const subject = `Contract to sign – ${jobTitle}`;
+  const html = `
+    <p>Hi ${escapeHtml(candidateName || "there")},</p>
+    <p>Please review and sign your placement contract for <strong>${escapeHtml(jobTitle || "the position")}</strong>.</p>
+    <p><a href="${escapeHtml(contractSignUrl)}">View and sign the contract</a></p>
+    <p>— ${escapeHtml(COMPANY_NAME)}</p>
+  `;
+  return sendEmail(candidateEmail, subject, html);
+}
+
 /** Credential expiry reminder to candidate */
 async function sendCredentialExpiryReminder(candidateEmail, docType, expiresAt, daysLeft) {
   const dateStr = expiresAt ? new Date(expiresAt).toLocaleDateString() : "";
@@ -160,6 +205,21 @@ async function sendCredentialExpiryReminder(candidateEmail, docType, expiresAt, 
   const html = `
     <p>Your ${escapeHtml(docType || "credential")} expires in ${daysLeft} day(s)${dateStr ? ` (${dateStr})` : ""}.</p>
     <p>Please upload an updated document to keep your profile current.</p>
+    <p>— ${escapeHtml(COMPANY_NAME)}</p>
+  `;
+  return sendEmail(candidateEmail, subject, html);
+}
+
+/** Compliance expiring soon – multiple doc types */
+async function sendComplianceExpiringNotice(candidateEmail, candidateName, expiringItems, profileUrl) {
+  const list = expiringItems.map((e) => `${e.type}${e.expiresAt ? ` (expires ${new Date(e.expiresAt).toLocaleDateString()})` : ""}`).join(", ");
+  const subject = "Compliance documents expiring soon";
+  const profileLink = profileUrl || (CLIENT_URL ? `${CLIENT_URL}/my-profile` : "");
+  const html = `
+    <p>Hi ${escapeHtml(candidateName || "there")},</p>
+    <p>The following documents need to be renewed soon: <strong>${escapeHtml(list)}</strong>.</p>
+    <p>Please upload updated documents to maintain your clear-to-work status.</p>
+    ${profileLink ? `<p><a href="${escapeHtml(profileLink)}">Update your profile</a></p>` : ""}
     <p>— ${escapeHtml(COMPANY_NAME)}</p>
   `;
   return sendEmail(candidateEmail, subject, html);
@@ -178,9 +238,13 @@ module.exports = {
   sendEmail,
   sendApplicationConfirmation,
   sendPasswordResetLink,
+  sendOfferToCandidate,
+  sendContractToCandidate,
   sendContactNotification,
   sendStatusChangeNotification,
   sendJobExpiredNotification,
+  sendAssignmentOffer,
   sendCredentialExpiryReminder,
+  sendComplianceExpiringNotice,
   sendJobAlertsDigest,
 };

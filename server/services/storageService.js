@@ -34,6 +34,15 @@ function getClient() {
   return client;
 }
 
+const ALLOWED_UPLOAD_EXT = ["pdf", "jpg", "jpeg", "png"];
+
+function sanitizeUploadExt(originalName) {
+  if (!originalName || typeof originalName !== "string") return "pdf";
+  const parts = originalName.split(".");
+  const ext = (parts.length > 1 ? parts.pop() : "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return ALLOWED_UPLOAD_EXT.includes(ext) ? ext : "pdf";
+}
+
 /**
  * Upload buffer to S3/R2.
  * @param {Buffer} buffer - File content
@@ -45,8 +54,7 @@ async function upload(buffer, originalName) {
     throw new Error("Cloud storage not configured. Set STORAGE_BUCKET, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY.");
   }
 
-  const ext = (originalName && originalName.includes(".")) ? originalName.split(".").pop().toLowerCase() : "pdf";
-  const safeExt = ["pdf"].includes(ext) ? ext : "pdf";
+  const safeExt = sanitizeUploadExt(originalName);
   const key = `${PREFIX}/${Date.now()}-${Math.round(Math.random() * 1e9)}.${safeExt}`;
 
   const s3 = getClient();

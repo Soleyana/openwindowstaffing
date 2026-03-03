@@ -36,6 +36,11 @@ const companySchema = new mongoose.Schema(
       enum: ["active", "inactive", "suspended"],
       default: "active",
     },
+    complianceConfig: {
+      requiredTypes: { type: [String], default: () => ["License", "BLS", "TB", "Background"] },
+      optionalTypes: { type: [String], default: () => ["ACLS"] },
+      expiringSoonDays: { type: Number, default: 30 },
+    },
   },
   { timestamps: true }
 );

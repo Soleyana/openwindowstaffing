@@ -15,10 +15,23 @@ const api = axios.create({
   },
 });
 
-/* FormData: do NOT set Content-Type - browser adds multipart boundary */
-api.interceptors.request.use((config) => {
+const MUTATING_METHODS = ["post", "put", "patch", "delete"];
+let csrfTokenPromise = null;
+
+async function ensureCsrfToken() {
+  if (csrfTokenPromise) return csrfTokenPromise;
+  csrfTokenPromise = api.get("/security/csrf").then((r) => r.data?.token || "");
+  return csrfTokenPromise;
+}
+
+/* FormData: do NOT set Content-Type - browser adds multipart boundary. CSRF token for mutating requests. */
+api.interceptors.request.use(async (config) => {
   if (config.data instanceof FormData) {
     delete config.headers["Content-Type"];
+  }
+  if (MUTATING_METHODS.includes(config.method?.toLowerCase?.())) {
+    const token = await ensureCsrfToken();
+    if (token) config.headers["X-CSRF-Token"] = token;
   }
   return config;
 });

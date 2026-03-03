@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
 import CompanySwitcher from "../components/CompanySwitcher";
 import { useCompany } from "../context/CompanyContext";
-import { getAdminTestimonials, approveTestimonial, rejectTestimonial, hideTestimonial } from "../api/testimonials";
+import { getAdminTestimonials, approveTestimonial, rejectTestimonial, hideTestimonial, deleteTestimonial } from "../api/testimonials";
 
 const TABS = ["pending", "approved", "rejected", "hidden"];
 
@@ -76,6 +76,17 @@ export default function ManageTestimonials() {
     }
   };
 
+  const handleDelete = async (id) => {
+    if (!window.confirm("Permanently delete this review? This cannot be undone.")) return;
+    try {
+      await deleteTestimonial(id);
+      toast.show("Review deleted", "success");
+      load();
+    } catch (err) {
+      toast.show(err?.response?.data?.message || "Failed to delete", "error");
+    }
+  };
+
   const openRejectModal = (id) => {
     setRejecting(id);
   };
@@ -144,6 +155,7 @@ export default function ManageTestimonials() {
                       {(r.status === "approved" || r.status === "rejected") && (
                         <button type="button" onClick={() => handleHide(r._id)} className="dashboard-cta--outline" style={{ padding: "0.35rem 0.75rem", fontSize: "0.85rem" }}>Hide</button>
                       )}
+                      <button type="button" onClick={() => handleDelete(r._id)} className="dashboard-cta--outline" style={{ padding: "0.35rem 0.75rem", fontSize: "0.85rem", color: "#b91c1c" }}>Delete</button>
                     </div>
                   </div>
                 </div>

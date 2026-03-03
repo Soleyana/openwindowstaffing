@@ -14,6 +14,7 @@ const ALLOWED_STATUSES = [
   "placed",
   "assignment_completed",
   "rejected",
+  "withdrawn",
 ];
 
 /** Readable labels for each status */
@@ -27,6 +28,7 @@ const STATUS_LABELS = {
   placed: "Placed",
   assignment_completed: "Assignment Completed",
   rejected: "Rejected",
+  withdrawn: "Withdrawn",
 };
 
 const DEFAULT_STATUS = "applied";
@@ -54,6 +56,7 @@ const PIPELINE_TO_APPLICANT = {
   placed: APPLICANT_STATUSES.PLACED,
   assignment_completed: APPLICANT_STATUSES.PLACED,
   rejected: APPLICANT_STATUSES.NOT_SELECTED,
+  withdrawn: "withdrawn",
 };
 
 /** Legacy status mapping for existing records */
@@ -65,6 +68,7 @@ const LEGACY_TO_PIPELINE = {
   interview: "interview_scheduled",
   hired: "placed",
   rejected: "rejected",
+  withdrawn: "withdrawn",
 };
 
 function toApplicantStatus(internalStatus) {

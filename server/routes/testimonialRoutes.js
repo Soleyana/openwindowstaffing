@@ -4,8 +4,10 @@ const { requireAuth, requireRecruiter, requireCompanyAccess } = require("../midd
 const testimonialController = require("../controllers/testimonialController");
 const { testimonialSubmitLimiter } = require("../middleware/rateLimiter");
 const { maybeRateLimit } = require("../middleware/maybeRateLimit");
+const { validateBody } = require("../middleware/validateRequest");
+const { submitTestimonialSchema } = require("../validators/testimonialValidators");
 
-router.post("/submit", maybeRateLimit(testimonialSubmitLimiter), testimonialController.submit);
+router.post("/submit", maybeRateLimit(testimonialSubmitLimiter), validateBody(submitTestimonialSchema), testimonialController.submit);
 router.get("/", testimonialController.list);
 
 router.get("/admin", requireAuth, requireRecruiter, requireCompanyAccess("query"), testimonialController.adminList);

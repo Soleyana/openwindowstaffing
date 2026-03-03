@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { NavLink, Outlet, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { isStaff, isOwner } from "../constants/roles";
+import { isStaff, isOwner, isPlatformAdmin } from "../constants/roles";
 import AuthLoadingSpinner from "./AuthLoadingSpinner";
+import NotificationBell from "./NotificationBell";
 import { REDIRECT_KEY, setLastProtectedRoute } from "../lib/authRedirect";
 
 const SidebarIcon = ({ name }) => {
   const iconProps = { width: 20, height: 20, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" };
+  if (name === "bell") return <svg {...iconProps}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>;
+  if (name === "shield") return <svg {...iconProps}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>;
   if (name === "dashboard") return <svg {...iconProps}><rect x="3" y="3" width="8" height="8" /><rect x="13" y="3" width="8" height="8" /><rect x="3" y="13" width="8" height="8" /><rect x="13" y="13" width="8" height="8" /></svg>;
   if (name === "briefcase") return <svg {...iconProps}><rect x="2" y="7" width="20" height="14" rx="2" ry="2" /><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" /></svg>;
   if (name === "building") return <svg {...iconProps}><rect x="4" y="2" width="16" height="20" rx="2" ry="2" /><path d="M9 22v-4h6v4" /><path d="M8 6h.01" /><path d="M16 6h.01" /><path d="M12 6h.01" /><path d="M12 10h.01" /><path d="M12 14h.01" /><path d="M16 10h.01" /><path d="M16 14h.01" /><path d="M8 10h.01" /><path d="M8 14h.01" /></svg>;
@@ -45,7 +48,9 @@ export default function DashboardLayout() {
 
   const recruiterNavItems = [
     { to: "/dashboard", icon: "dashboard", label: "Dashboard" },
+    ...(isOwner(user) ? [{ to: "/onboarding", icon: "chart", label: "Onboarding" }] : []),
     { to: "/inbox", icon: "mail", label: "Inbox" },
+    { to: "/notifications", icon: "bell", label: "Notifications" },
     { to: "/applicant-pipeline", icon: "users", label: "Applicant Pipeline" },
     { to: "/recruiter-dashboard", icon: "users", label: "Applicants" },
     { to: "/candidates", icon: "search", label: "Candidate Search" },
@@ -58,19 +63,30 @@ export default function DashboardLayout() {
     { to: "/staffing-requests", icon: "briefcase", label: "Staffing Requests" },
     { to: "/listing-reports", icon: "chart", label: "Listing Reports" },
     { to: "/orders", icon: "card", label: "Orders" },
+    { to: "/invoices", icon: "card", label: "Invoices" },
+    { to: "/timesheets-inbox", icon: "chart", label: "Timesheets" },
   ];
 
   const candidateNavItems = [
     { to: "/dashboard", icon: "dashboard", label: "Dashboard" },
+    { to: "/onboarding", icon: "chart", label: "Onboarding" },
     { to: "/inbox", icon: "mail", label: "Inbox" },
+    { to: "/notifications", icon: "bell", label: "Notifications" },
     { to: "/my-applications", icon: "briefcase", label: "My Applications" },
+    { to: "/my-assignments", icon: "briefcase", label: "My Assignments" },
+    { to: "/my-offers", icon: "briefcase", label: "My Offers" },
+    { to: "/my-contracts", icon: "briefcase", label: "My Contracts" },
+    { to: "/timesheets", icon: "card", label: "Timesheets" },
     { to: "/my-profile", icon: "user", label: "My Profile" },
     { to: "/jobs", icon: "search", label: "Browse Jobs" },
   ];
 
   const navItems = isRecruiter ? recruiterNavItems : candidateNavItems;
   const listingItems = isRecruiter ? [{ to: "/post-job", icon: "plus", label: "Post Job" }] : [];
-  const accountItems = [{ to: "/account-settings", icon: "settings", label: "Account Settings" }];
+  const accountItems = [
+    ...(isPlatformAdmin(user) ? [{ to: "/admin", icon: "shield", label: "Admin" }] : []),
+    { to: "/account-settings", icon: "settings", label: "Account Settings" },
+  ];
 
   return (
     <div className="dashboard-layout">
@@ -152,7 +168,12 @@ export default function DashboardLayout() {
         </nav>
       </aside>
       <main className="dashboard-main">
-        <Outlet />
+        <div className="dashboard-main-header">
+          <NotificationBell />
+        </div>
+        <div className="dashboard-main-content">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

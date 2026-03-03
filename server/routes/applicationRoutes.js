@@ -17,6 +17,7 @@ const {
   exportApplicationsCsv,
   checkApplied,
   updateApplicationStatus,
+  withdrawApplication,
 } = require("../controllers/applicationController");
 const emailService = require("../services/emailService");
 const storageService = require("../services/storageService");
@@ -39,6 +40,7 @@ router.get("/recruiter", requireAuth, requireRecruiter, getAllApplications);
 router.get("/job/:jobId/export", requireAuth, requireRecruiter, exportApplicationsForJob);
 router.get("/job/:jobId", requireAuth, requireRecruiter, getApplicationsForJob);
 router.patch("/:id/status", requireAuth, requireRecruiter, updateApplicationStatus);
+router.patch("/:id/withdraw", requireAuth, requireApplicant, withdrawApplication);
 
 /* Resume download: GET /api/applications/:id/resume (auth + access check) */
 router.get("/:id/resume", requireAuth, async (req, res) => {

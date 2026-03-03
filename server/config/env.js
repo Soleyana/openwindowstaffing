@@ -42,12 +42,22 @@ const STORAGE_ENDPOINT = process.env.STORAGE_ENDPOINT;
 const STORAGE_PUBLIC_URL_BASE = process.env.STORAGE_PUBLIC_URL_BASE;
 const STORAGE_PREFIX = process.env.STORAGE_PREFIX || "resumes";
 
-/* Document upload limits */
-const MAX_UPLOAD_SIZE_MB = parseInt(process.env.MAX_UPLOAD_SIZE_MB, 10) || 5;
+/** Rate limiting: set to true or 1 in local .env only to disable during dev. Never set in production. */
+const RATE_LIMIT_DISABLED = process.env.RATE_LIMIT_DISABLED === "true" || process.env.RATE_LIMIT_DISABLED === "1";
+
+/** Safe mode toggles: prevent outbound emails (incident response). */
+const EMAIL_DISABLED = process.env.EMAIL_DISABLED === "true" || process.env.EMAIL_DISABLED === "1";
+
+/* Document upload limits: 10MB resume (apply), 15MB credentials (profile docs) */
+const MAX_RESUME_SIZE_MB = parseInt(process.env.MAX_RESUME_SIZE_MB, 10) || 10;
+const MAX_CREDENTIAL_SIZE_MB = parseInt(process.env.MAX_CREDENTIAL_SIZE_MB, 10) || 15;
+const MAX_UPLOAD_SIZE_MB = parseInt(process.env.MAX_UPLOAD_SIZE_MB, 10) || MAX_CREDENTIAL_SIZE_MB; /* backward compat */
 const ALLOWED_DOCUMENT_MIMES = (process.env.ALLOWED_DOCUMENT_MIMES || "application/pdf,image/jpeg,image/png").split(",").map((m) => m.trim()).filter(Boolean);
 
 module.exports = {
   isProduction,
+  RATE_LIMIT_DISABLED,
+  EMAIL_DISABLED,
   JWT_SECRET,
   COOKIE_SAMESITE,
   COOKIE_SECURE,
@@ -72,6 +82,8 @@ module.exports = {
   STORAGE_ENDPOINT,
   STORAGE_PUBLIC_URL_BASE,
   STORAGE_PREFIX,
+  MAX_RESUME_SIZE_MB,
+  MAX_CREDENTIAL_SIZE_MB,
   MAX_UPLOAD_SIZE_MB,
   ALLOWED_DOCUMENT_MIMES,
 };

@@ -19,7 +19,7 @@ export function getRedirectTarget(user, locationStateFrom) {
   } catch {
     /* ignore */
   }
-  return "/dashboard";
+  return "/onboarding";
 }
 
 export function setLastProtectedRoute(path) {

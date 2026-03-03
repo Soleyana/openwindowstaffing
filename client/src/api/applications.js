@@ -24,6 +24,16 @@ export async function getMyApplications() {
   return data;
 }
 
+/**
+ * PATCH /api/applications/:id/withdraw - Applicant withdraws own application.
+ * @param {string} applicationId
+ * @param {string} [reason] - Optional reason (max 500 chars)
+ */
+export async function withdrawApplication(applicationId, reason = "") {
+  const { data } = await api.patch(`applications/${applicationId}/withdraw`, { reason }, { withCredentials: true });
+  return data;
+}
+
 export async function getMyApplicationStats() {
   const { data } = await api.get("applications/my-stats", { withCredentials: true });
   return data;

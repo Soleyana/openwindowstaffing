@@ -13,13 +13,14 @@ exports.getCompliance = async (req, res) => {
   try {
     const { candidateId } = req.params;
     const companyId = req.query.companyId;
+    const facilityId = req.query.facilityId || null;
     const isMe = candidateId === "me";
 
     if (req.user.role === ROLES.APPLICANT) {
       if (!isMe) {
         return res.status(403).json({ success: false, message: "Applicants can only view their own compliance" });
       }
-      const result = await complianceService.computeCompliance(req.user._id, null);
+      const result = await complianceService.computeCompliance(req.user._id, companyId || null, facilityId);
       return res.status(200).json({ success: true, data: result });
     }
 
@@ -36,7 +37,7 @@ exports.getCompliance = async (req, res) => {
       if (!allowed) {
         return res.status(403).json({ success: false, message: "Access denied to this company" });
       }
-      const result = await complianceService.computeCompliance(candidateId, companyId);
+      const result = await complianceService.computeCompliance(candidateId, companyId, facilityId);
       return res.status(200).json({ success: true, data: result });
     }
 
@@ -110,6 +111,7 @@ exports.reviewCompliance = async (req, res) => {
 exports.getComplianceBatch = async (req, res) => {
   try {
     const companyId = req.query.companyId;
+    const facilityId = req.query.facilityId || null;
     const candidateIdsRaw = req.query.candidateIds;
     if (!companyId) {
       return res.status(400).json({ success: false, message: "companyId is required" });
@@ -132,7 +134,7 @@ exports.getComplianceBatch = async (req, res) => {
     const accessibleIds = await candidateService.getAccessibleCandidateIds(req.user);
     const filtered = candidateIds.filter((id) => accessibleIds.includes(id));
 
-    const results = await complianceService.computeComplianceBatch(filtered, companyId);
+    const results = await complianceService.computeComplianceBatch(filtered, companyId, facilityId);
 
     res.status(200).json({ success: true, data: results });
   } catch (error) {

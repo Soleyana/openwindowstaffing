@@ -128,7 +128,9 @@ export default function ApplyJob() {
       toast.show("Application submitted successfully.");
       navigate("/my-applications");
     } catch (err) {
-      setError(err?.response?.data?.message || err?.message || "Application failed.");
+      const d = err?.response?.data || {};
+      const msg = d?.message || err?.message || "Application failed.";
+      setError(d?.requestId ? `${msg} (ID: ${d.requestId})` : msg);
     } finally {
       setLoading(false);
     }

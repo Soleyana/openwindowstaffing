@@ -2,6 +2,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { JWT_SECRET } = require("../config/env");
 const { ROLES, STAFF_ROLES } = require("../constants/roles");
+const { isPlatformAdmin } = require("../constants/roles");
 const { hasCompanyAccess, resolveCompanyIdFromEntity } = require("../services/companyAccessService");
 const { COOKIE_NAME } = require("../utils/cookieOptions");
 
@@ -106,6 +107,20 @@ exports.requireRecruiter = requireRole(ROLES.RECRUITER, ROLES.OWNER);
 
 /** Owner only - for invite management */
 exports.requireOwner = requireRole(ROLES.OWNER);
+
+/** Platform admin only - view all companies, system health */
+exports.requirePlatformAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ success: false, message: "Not authorized" });
+  }
+  if (!isPlatformAdmin(req.user.role)) {
+    return res.status(403).json({
+      success: false,
+      message: "Access denied. Platform admin only.",
+    });
+  }
+  next();
+};
 
 /** Applicant only - for job applications */
 exports.requireApplicant = requireRole(ROLES.APPLICANT);
