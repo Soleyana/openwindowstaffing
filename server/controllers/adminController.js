@@ -2,6 +2,7 @@
  * Admin controller - platformAdmin only.
  */
 const mongoose = require("mongoose");
+const emailService = require("../services/emailService");
 const Company = require("../models/Company");
 const User = require("../models/User");
 const Job = require("../models/Job");
@@ -75,6 +76,9 @@ exports.getSystemInfo = async (req, res) => {
 
     const enableBackgroundJobs = process.env.ENABLE_BACKGROUND_JOBS === "true" || process.env.ENABLE_BACKGROUND_JOBS === "1";
     const emailDisabled = process.env.EMAIL_DISABLED === "true" || process.env.EMAIL_DISABLED === "1";
+    const testEmailOverride = Boolean(process.env.TEST_EMAIL_OVERRIDE);
+    const resendConfigured = Boolean(process.env.RESEND_API_KEY);
+    const emailReady = resendConfigured && !emailDisabled;
 
     return res.status(200).json({
       success: true,
@@ -89,6 +93,11 @@ exports.getSystemInfo = async (req, res) => {
         toggles: {
           ENABLE_BACKGROUND_JOBS: enableBackgroundJobs,
           EMAIL_DISABLED: emailDisabled,
+          TEST_EMAIL_OVERRIDE: testEmailOverride,
+        },
+        email: {
+          ready: emailReady,
+          resendConfigured,
         },
       },
     });
@@ -96,6 +105,34 @@ exports.getSystemInfo = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: sanitizeErrorMessage(error, "Failed to fetch system info"),
+    });
+  }
+};
+
+/**
+ * POST /api/admin/test-email - Send a test email (platformAdmin only).
+ * Body: { to: "your@email.com" }
+ */
+exports.sendTestEmail = async (req, res) => {
+  try {
+    const to = (req.body?.to || req.query?.to || "").trim();
+    if (!to || !to.includes("@")) {
+      return res.status(400).json({ success: false, message: "Valid email address required (body.to or query.to)" });
+    }
+    const html = `<p>This is a test email from Open Window Staffing.</p><p>If you received this, email is working.</p>`;
+    const sent = await emailService.sendEmail(to, "Test email from Open Window Staffing", html, {
+      caller: "admin_test",
+      requestId: req.requestId,
+    });
+    return res.status(200).json({
+      success: true,
+      message: sent ? "Test email sent. Check your inbox (and spam)." : "Send failed. Check server logs and RESEND_API_KEY.",
+      sent,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: sanitizeErrorMessage(error, "Failed to send test email"),
     });
   }
 };

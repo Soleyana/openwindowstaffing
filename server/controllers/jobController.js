@@ -1,6 +1,7 @@
 const Job = require("../models/Job");
 const { sanitizeErrorMessage } = require("../utils/sanitizeError");
 const activityLogService = require("../services/activityLogService");
+const { hasCompanyAccess } = require("../services/companyAccessService");
 
 function escapeRegex(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -173,13 +174,19 @@ exports.updateJob = async (req, res) => {
         message: "Job not found",
       });
     }
-    if (job.createdBy.toString() !== req.user._id.toString()) {
+    const ownsJob = job.createdBy?.toString() === req.user._id.toString();
+    let hasAccess = ownsJob;
+    if (!hasAccess && job.companyId) {
+      const { allowed } = await hasCompanyAccess(req.user._id.toString(), job.companyId.toString());
+      hasAccess = !!allowed;
+    }
+    if (!hasAccess) {
       return res.status(403).json({
         success: false,
         message: "Not authorized to update this job",
       });
     }
-    const { title, description, location, jobType, category, specialty, payRate, company, expiresAt } = req.body;
+    const { title, description, location, jobType, category, specialty, payRate, company, companyWebsite, companyEmail, companyContactPhone, shift, salary, employmentType, expiresAt } = req.body;
     if (title !== undefined) job.title = title;
     if (description !== undefined) job.description = description;
     if (location !== undefined) job.location = location;
@@ -188,6 +195,12 @@ exports.updateJob = async (req, res) => {
     if (specialty !== undefined) job.specialty = specialty;
     if (payRate !== undefined) job.payRate = payRate;
     if (company !== undefined) job.company = company;
+    if (companyWebsite !== undefined) job.companyWebsite = companyWebsite;
+    if (companyEmail !== undefined) job.companyEmail = companyEmail;
+    if (companyContactPhone !== undefined) job.companyContactPhone = companyContactPhone;
+    if (shift !== undefined) job.shift = shift;
+    if (salary !== undefined) job.salary = salary;
+    if (employmentType !== undefined) job.employmentType = employmentType;
     if (expiresAt !== undefined) {
       if (expiresAt === null || expiresAt === "") {
         job.expiresAt = null;
@@ -236,7 +249,13 @@ exports.deleteJob = async (req, res) => {
       });
     }
 
-    if (job.createdBy.toString() !== req.user._id.toString()) {
+    const ownsJob = job.createdBy?.toString() === req.user._id.toString();
+    let hasAccess = ownsJob;
+    if (!hasAccess && job.companyId) {
+      const { allowed } = await hasCompanyAccess(req.user._id.toString(), job.companyId.toString());
+      hasAccess = !!allowed;
+    }
+    if (!hasAccess) {
       return res.status(403).json({
         success: false,
         message: "Not authorized to delete this job",

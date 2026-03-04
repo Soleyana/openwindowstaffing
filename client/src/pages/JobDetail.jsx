@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "../context/AuthContext";
-import { ROLES } from "../constants/roles";
+import { ROLES, isStaff } from "../constants/roles";
 import { useToast } from "../context/ToastContext";
 import { BRAND } from "../config";
 import { trackEvent } from "../components/Analytics";
@@ -110,6 +110,9 @@ export default function JobDetail() {
       </Helmet>
       <nav className="jobs-nav">
         <Link to="/jobs">← Back to jobs</Link>
+        {isLoggedIn && isStaff(user?.role) && (
+          <Link to={`/jobs/${job._id}/edit`} className="job-detail-edit-btn">Edit Job</Link>
+        )}
       </nav>
       <article className="job-detail">
         <div className="job-detail-header">

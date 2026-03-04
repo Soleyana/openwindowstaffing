@@ -5,7 +5,7 @@ const PasswordResetToken = require("../models/PasswordResetToken");
 const jwt = require("jsonwebtoken");
 const { sanitizeErrorMessage } = require("../utils/sanitizeError");
 const { validatePassword } = require("../utils/passwordPolicy");
-const { JWT_SECRET, JWT_EXPIRES_IN, CLIENT_URL } = require("../config/env");
+const { JWT_SECRET, JWT_EXPIRES_IN, getClientUrl } = require("../config/env");
 const { COOKIE_NAME, COOKIE_MAX_AGE_MS, getAuthCookieOptions, getClearCookieOptions } = require("../utils/cookieOptions");
 const emailService = require("../services/emailService");
 const { ROLES } = require("../constants/roles");
@@ -253,11 +253,15 @@ exports.acceptInvite = async (req, res) => {
 };
 
 exports.forgotPassword = async (req, res) => {
+  const logger = require("../utils/logger");
+  const activityLogService = require("../services/activityLogService");
+  const routeName = "POST /api/auth/forgot-password";
+
   try {
     const { email } = req.body;
     const normalizedEmail = email?.trim()?.toLowerCase();
     if (!normalizedEmail) {
-      return res.status(400).json({ success: false, message: "Email is required" });
+      return res.status(400).json({ success: false, message: "Email is required", requestId: req.requestId });
     }
 
     const user = await User.findOne({ email: normalizedEmail });
@@ -265,33 +269,47 @@ exports.forgotPassword = async (req, res) => {
       return res.status(200).json({
         success: true,
         message: "If that email exists, we sent a reset link. Check your inbox.",
+        requestId: req.requestId,
       });
     }
 
     const token = await PasswordResetToken.createToken(normalizedEmail);
-    const baseUrl = CLIENT_URL || "http://localhost:5173";
+    const baseUrl = getClientUrl();
     const resetUrl = `${baseUrl}/reset-password?token=${token}`;
-    emailService.sendPasswordResetLink(normalizedEmail, resetUrl).then(() => {
-      const activityLogService = require("../services/activityLogService");
-      activityLogService.log({
-        req,
-        targetType: "User",
-        actionType: "password_reset_sent",
-        message: "Password reset link sent",
-        metadata: { email: normalizedEmail },
-      }).catch(() => {});
-    }).catch((err) =>
-      require("../utils/logger").error({ err: err?.message }, "[Email] Password reset link failed")
-    );
+    const recipientMasked = normalizedEmail.replace(/(.{2}).*(@.*)/, "$1***$2");
+
+    const sent = await emailService.sendPasswordResetLink(normalizedEmail, resetUrl, { requestId: req.requestId, caller: "forgot_password" });
+
+    if (!sent) {
+      logger.error({ route: routeName, recipient: recipientMasked, requestId: req.requestId }, "[Auth] Forgot password – email send failed");
+      return res.status(500).json({
+        success: false,
+        message: "Unable to send reset email. Please try again later.",
+        requestId: req.requestId,
+      });
+    }
+
+    activityLogService.log({
+      req,
+      targetType: "User",
+      actionType: "password_reset_sent",
+      message: "Password reset link sent",
+      metadata: { email: normalizedEmail },
+    }).catch(() => {});
+
+    logger.info({ route: routeName, recipient: recipientMasked, requestId: req.requestId }, "[Auth] Forgot password – email sent");
 
     res.status(200).json({
       success: true,
       message: "If that email exists, we sent a reset link. Check your inbox.",
+      requestId: req.requestId,
     });
   } catch (error) {
+    logger.error({ route: routeName, requestId: req.requestId, err: error?.message }, "[Auth] Forgot password – error");
     res.status(500).json({
       success: false,
       message: sanitizeErrorMessage(error, "Failed to send reset email"),
+      requestId: req.requestId,
     });
   }
 };

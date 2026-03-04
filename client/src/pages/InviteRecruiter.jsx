@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Navigate, Link } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { isOwner } from "../constants/roles";
 import { useToast } from "../context/ToastContext";
@@ -8,37 +8,53 @@ import { getMyCompanies, createCompany } from "../api/companies";
 
 export default function InviteRecruiter() {
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [companies, setCompanies] = useState([]);
   const [invites, setInvites] = useState([]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteCompanyId, setInviteCompanyId] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteSuccess, setInviteSuccess] = useState(null);
+  const [companiesLoading, setCompaniesLoading] = useState(true);
   const [revokingId, setRevokingId] = useState(null);
   const [newCompanyName, setNewCompanyName] = useState("");
   const [creatingCompany, setCreatingCompany] = useState(false);
   const toast = useToast();
 
+  useEffect(() => {
+    setInviteSuccess(null);
+    if (location.state && Object.keys(location.state || {}).length > 0) {
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, []);
+
   const loadCompanies = () => {
     if (!isOwner(user)) return;
+    setCompaniesLoading(true);
     getMyCompanies()
       .then((res) => {
         const list = res.data || [];
         setCompanies(list);
         if (list.length > 0 && !inviteCompanyId) setInviteCompanyId(list[0]._id);
       })
-      .catch(() => setCompanies([]));
+      .catch(() => setCompanies([]))
+      .finally(() => setCompaniesLoading(false));
   };
 
   useEffect(() => {
     if (isOwner(user)) {
+      setCompaniesLoading(true);
       getMyCompanies()
         .then((res) => {
           const list = res.data || [];
           setCompanies(list);
           if (list.length > 0 && !inviteCompanyId) setInviteCompanyId(list[0]._id);
         })
-        .catch(() => setCompanies([]));
+        .catch(() => setCompanies([]))
+        .finally(() => setCompaniesLoading(false));
+    } else {
+      setCompaniesLoading(false);
     }
   }, [user]);
 
@@ -93,6 +109,14 @@ export default function InviteRecruiter() {
   if (!user) return null;
   if (!isOwner(user)) {
     return <Navigate to="/dashboard" replace />;
+  }
+
+  if (companiesLoading && companies.length === 0) {
+    return (
+      <div className="invite-recruiter-page" style={{ maxWidth: "600px" }}>
+        <p style={{ color: "#64748b" }}>Loading…</p>
+      </div>
+    );
   }
 
   return (

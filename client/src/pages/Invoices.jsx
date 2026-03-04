@@ -7,7 +7,7 @@ import {
   generateInvoice,
   issueInvoice,
   markPaidInvoice,
-  downloadInvoiceCsv,
+  downloadInvoiceExport,
 } from "../api/invoices";
 import { useToast } from "../context/ToastContext";
 import { isStaff } from "../constants/roles";
@@ -25,7 +25,10 @@ function formatDate(d) {
 
 export default function Invoices() {
   const { user } = useAuth();
-  const { companies, selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const companyCtx = useCompany();
+  const companies = Array.isArray(companyCtx?.companies) ? companyCtx.companies : [];
+  const selectedCompanyId = companyCtx?.selectedCompanyId ?? null;
+  const setSelectedCompanyId = companyCtx?.setSelectedCompanyId ?? (() => {});
   const toast = useToast();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -43,8 +46,8 @@ export default function Invoices() {
       setLoading(false);
       return;
     }
-    if (companies?.length === 1 && !selectedCompanyId) {
-      setSelectedCompanyId?.(companies[0]._id);
+    if (companies.length === 1 && !selectedCompanyId && companies[0]?._id) {
+      setSelectedCompanyId(companies[0]._id);
     }
   }, [user, companies, selectedCompanyId]);
 
@@ -57,7 +60,7 @@ export default function Invoices() {
         const params = { ...filters };
         if (selectedCompanyId) params.companyId = selectedCompanyId;
         const res = await getInvoices(params);
-        if (!cancelled) setInvoices(res.data || []);
+        if (!cancelled) setInvoices(Array.isArray(res?.data) ? res.data : []);
       } catch (err) {
         if (!cancelled) setError(err.message);
       } finally {
@@ -75,7 +78,7 @@ export default function Invoices() {
     }
     let cancelled = false;
     getInvoice(detailId)
-      .then((res) => { if (!cancelled) setDetail(res.data); })
+      .then((res) => { if (!cancelled) setDetail(res?.data ?? null); })
       .catch(() => { if (!cancelled) setDetail(null); });
     return () => { cancelled = true; };
   }, [detailId]);
@@ -92,7 +95,7 @@ export default function Invoices() {
       const params = { ...filters };
       if (selectedCompanyId) params.companyId = selectedCompanyId;
       const res = await getInvoices(params);
-      setInvoices(res.data || []);
+      setInvoices(Array.isArray(res?.data) ? res.data : []);
     } catch (err) {
       toast.show(err.response?.data?.message || "Failed to generate", "error");
     } finally {
@@ -105,11 +108,11 @@ export default function Invoices() {
     try {
       await issueInvoice(id);
       toast.show("Invoice issued", "success");
-      if (detailId === id) getInvoice(id).then((r) => setDetail(r.data));
+      if (detailId === id) getInvoice(id).then((r) => setDetail(r?.data ?? null));
       const params = { ...filters };
       if (selectedCompanyId) params.companyId = selectedCompanyId;
       const res = await getInvoices(params);
-      setInvoices(res.data || []);
+      setInvoices(Array.isArray(res?.data) ? res.data : []);
     } catch (err) {
       toast.show(err.response?.data?.message || "Failed to issue", "error");
     } finally {
@@ -124,11 +127,11 @@ export default function Invoices() {
       await markPaidInvoice(id);
       toast.show("Invoice marked paid", "success");
       setMarkPaidModal(null);
-      if (detailId === id) getInvoice(id).then((r) => setDetail(r.data));
+      if (detailId === id) getInvoice(id).then((r) => setDetail(r?.data ?? null));
       const params = { ...filters };
       if (selectedCompanyId) params.companyId = selectedCompanyId;
       const res = await getInvoices(params);
-      setInvoices(res.data || []);
+      setInvoices(Array.isArray(res?.data) ? res.data : []);
     } catch (err) {
       toast.show(err.response?.data?.message || "Failed to mark paid", "error");
     } finally {
@@ -154,10 +157,13 @@ export default function Invoices() {
   }
 
   return (
-    <div className="dashboard-page">
-      <div className="dashboard-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem", marginBottom: "1.5rem" }}>
-        <h1>Invoices</h1>
-        <button type="button" className="btn-primary" onClick={() => setGenerateModal(true)}>
+    <div className="dashboard-page invoices-page">
+      <div className="invoices-header">
+        <div className="invoices-header-title">
+          <h1>Invoices</h1>
+          <p className="invoices-subtitle">Manage billing and timesheet summaries</p>
+        </div>
+        <button type="button" className="btn-primary invoices-generate-btn" onClick={() => setGenerateModal(true)}>
           Generate Invoice
         </button>
       </div>
@@ -194,83 +200,47 @@ export default function Invoices() {
       {loading && <p className="jobs-loading">Loading…</p>}
       {error && <p className="jobs-error">{error}</p>}
       {!loading && !error && (
-        <div className="card">
+        <div className="invoices-card">
           {invoices.length === 0 ? (
-            <p className="text-muted">No invoices. Generate from approved timesheets.</p>
+            <div className="invoices-empty">
+              <span className="invoices-empty-icon" aria-hidden>📋</span>
+              <p>No invoices yet. Generate from approved timesheets.</p>
+            </div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table className="table" style={{ width: "100%", borderCollapse: "collapse" }}>
+            <div className="invoices-table-wrap">
+              <table className="invoices-table">
                 <thead>
                   <tr>
-                    <th style={{ textAlign: "left", padding: "0.5rem" }}>Number</th>
-                    <th style={{ textAlign: "left", padding: "0.5rem" }}>Period</th>
-                    <th style={{ textAlign: "right", padding: "0.5rem" }}>Total</th>
-                    <th style={{ textAlign: "left", padding: "0.5rem" }}>Status</th>
-                    <th style={{ textAlign: "left", padding: "0.5rem" }}>Actions</th>
+                    <th>Number</th>
+                    <th>Period</th>
+                    <th className="invoices-th-total">Total</th>
+                    <th>Status</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {invoices.map((inv) => (
                     <tr key={inv._id}>
-                      <td style={{ padding: "0.5rem" }}>{inv.invoiceNumber}</td>
-                      <td style={{ padding: "0.5rem" }}>
+                      <td className="invoices-number">{inv.invoiceNumber}</td>
+                      <td className="invoices-period">
                         {formatDate(inv.periodStart)} – {formatDate(inv.periodEnd)}
                       </td>
-                      <td style={{ padding: "0.5rem", textAlign: "right" }}>
-                        ${(inv.total ?? 0).toFixed(2)}
-                      </td>
-                      <td style={{ padding: "0.5rem" }}>
-                        <span className="badge" style={{ textTransform: "capitalize" }}>
+                      <td className="invoices-total">${(inv.total ?? 0).toFixed(2)}</td>
+                      <td>
+                        <span className={`invoices-status invoices-status--${inv.status}`}>
                           {STATUS_LABELS[inv.status] || inv.status}
                         </span>
                       </td>
-                      <td style={{ padding: "0.5rem" }}>
-                        <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            style={{ fontSize: "0.85rem", padding: "0.25rem 0.5rem" }}
-                            onClick={() => setDetailId(inv._id)}
-                          >
-                            View
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            style={{ fontSize: "0.85rem", padding: "0.25rem 0.5rem" }}
-                            onClick={() => handleExport(inv._id, "csv")}
-                          >
-                            Export CSV
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            style={{ fontSize: "0.85rem", padding: "0.25rem 0.5rem" }}
-                            onClick={() => handleExport(inv._id, "html")}
-                          >
-                            Export PDF
-                          </button>
+                      <td>
+                        <div className="invoices-actions">
+                          <button type="button" className="invoices-btn invoices-btn--view" onClick={() => setDetailId(inv._id)}>View</button>
+                          <button type="button" className="invoices-btn invoices-btn--outline" onClick={() => handleExport(inv._id, "csv")}>Export CSV</button>
+                          <button type="button" className="invoices-btn invoices-btn--outline" onClick={() => handleExport(inv._id, "html")}>Export PDF</button>
                           {inv.status === "draft" && (
-                            <button
-                              type="button"
-                              className="btn-primary"
-                              style={{ fontSize: "0.85rem", padding: "0.25rem 0.5rem" }}
-                              disabled={submitting}
-                              onClick={() => handleIssue(inv._id)}
-                            >
-                              Issue
-                            </button>
+                            <button type="button" className="invoices-btn invoices-btn--primary" disabled={submitting} onClick={() => handleIssue(inv._id)}>Issue</button>
                           )}
                           {inv.status === "issued" && (
-                            <button
-                              type="button"
-                              className="btn-primary"
-                              style={{ fontSize: "0.85rem", padding: "0.25rem 0.5rem" }}
-                              disabled={submitting}
-                              onClick={() => setMarkPaidModal(inv._id)}
-                            >
-                              Mark Paid
-                            </button>
+                            <button type="button" className="invoices-btn invoices-btn--primary" disabled={submitting} onClick={() => setMarkPaidModal(inv._id)}>Mark Paid</button>
                           )}
                         </div>
                       </td>

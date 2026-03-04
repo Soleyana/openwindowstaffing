@@ -25,7 +25,7 @@ exports.submit = async (req, res) => {
       });
     }
 
-    const sent = await emailService.sendContactNotification(n, e, s, m);
+    const sent = await emailService.sendContactNotification(n, e, s, m, { requestId: req.requestId });
     if (sent) {
       activityLogService.log({
         req,

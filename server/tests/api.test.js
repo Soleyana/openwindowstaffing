@@ -2021,6 +2021,367 @@ describe("ActivityLog model", () => {
   });
 });
 
+describe("Cross-tenant access control (PR 8B.5)", () => {
+  const BASE = `http://localhost:${PORT}`;
+
+  async function loginAs(email, password) {
+    const csrf = await getCsrf();
+    const loginRes = await fetch(`${BASE}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...csrf.headers },
+      body: JSON.stringify({ email, password: password || "Demo123!" }),
+      redirect: "manual",
+    });
+    if (loginRes.status !== 200) return null;
+    const cookie = loginRes.headers.get("set-cookie");
+    const authCookie = cookie ? cookie.split(";")[0] : null;
+    const headers = authCookie ? csrf.withAuth(authCookie) : csrf.headers;
+    return { csrf, authCookie, headers };
+  }
+
+  it("1. Recruiter in Company A cannot GET Company B resource (job applicants)", async () => {
+    const uri = process.env.MONGODB_URI;
+    if (!uri) return;
+
+    const mongoose = require("mongoose");
+    const User = require("../models/User");
+    const Company = require("../models/Company");
+    const Facility = require("../models/Facility");
+    const Job = require("../models/Job");
+    const Application = require("../models/Application");
+    const RecruiterMembership = require("../models/RecruiterMembership");
+
+    await mongoose.connect(uri);
+    const owner = await User.findOne({ email: "owner@demo.com" });
+    const recruiter = await User.findOne({ email: "recruiter@demo.com" });
+    const candidate = await User.findOne({ email: "candidate@demo.com" });
+    if (!owner || !recruiter || !candidate) {
+      await mongoose.disconnect();
+      return;
+    }
+
+    const companyA = await Company.findOne({ ownerId: owner._id });
+    const mem = await RecruiterMembership.findOne({ userId: recruiter._id, status: "active" });
+    if (!companyA || !mem || mem.companyId.toString() !== companyA._id.toString()) {
+      await mongoose.disconnect();
+      return;
+    }
+
+    const companyB = await Company.create({
+      name: "Cross-Tenant Test Co B " + Date.now(),
+      legalName: "Test B LLC",
+      ownerId: owner._id,
+      status: "active",
+    });
+    const facilityB = await Facility.create({
+      companyId: companyB._id,
+      name: "Facility B",
+      status: "active",
+    });
+    const jobB = await Job.create({
+      title: "Job B",
+      description: "Test job for cross-tenant",
+      location: "Remote",
+      jobType: "full-time",
+      company: companyB.name,
+      companyId: companyB._id,
+      facilityId: facilityB._id,
+      createdBy: owner._id,
+      status: "open",
+    });
+    const appB = await Application.create({
+      jobId: jobB._id,
+      companyId: companyB._id,
+      facilityId: facilityB._id,
+      applicant: candidate._id,
+      firstName: "Jane",
+      lastName: "Candidate",
+      email: candidate.email,
+      phone: "555-0100",
+      status: "applied",
+    });
+    await mongoose.disconnect();
+
+    const auth = await loginAs("recruiter@demo.com");
+    if (!auth) return;
+    const res = await fetch(`${BASE}/api/recruiter/jobs/${jobB._id}/applicants`, {
+      headers: auth.headers,
+      credentials: "include",
+    });
+    assert.ok(res.status === 403 || res.status === 404, `Expected 403 or 404, got ${res.status}`);
+
+    await mongoose.connect(uri);
+    await Application.deleteOne({ _id: appB._id });
+    await Job.deleteOne({ _id: jobB._id });
+    await Facility.deleteOne({ _id: facilityB._id });
+    await Company.deleteOne({ _id: companyB._id });
+    await mongoose.disconnect();
+  });
+
+  it("2. Recruiter in Company A cannot mutate Company B resource (PATCH application status)", async () => {
+    const uri = process.env.MONGODB_URI;
+    if (!uri) return;
+
+    const mongoose = require("mongoose");
+    const User = require("../models/User");
+    const Company = require("../models/Company");
+    const Facility = require("../models/Facility");
+    const Job = require("../models/Job");
+    const Application = require("../models/Application");
+    const RecruiterMembership = require("../models/RecruiterMembership");
+
+    await mongoose.connect(uri);
+    const owner = await User.findOne({ email: "owner@demo.com" });
+    const recruiter = await User.findOne({ email: "recruiter@demo.com" });
+    const candidate = await User.findOne({ email: "candidate@demo.com" });
+    if (!owner || !recruiter || !candidate) {
+      await mongoose.disconnect();
+      return;
+    }
+
+    const companyB = await Company.findOne({ name: /Cross-Tenant Test Co B/ });
+    let appB;
+    if (companyB) {
+      appB = await Application.findOne({ companyId: companyB._id });
+    }
+    if (!appB) {
+      const companyBNew = await Company.create({
+        name: "Cross-Tenant Test Co B2 " + Date.now(),
+        legalName: "Test B2 LLC",
+        ownerId: owner._id,
+        status: "active",
+      });
+      const facilityB = await Facility.create({
+        companyId: companyBNew._id,
+        name: "Facility B2",
+        status: "active",
+      });
+      const jobB = await Job.create({
+        title: "Job B2",
+        description: "Test job for cross-tenant",
+        location: "Remote",
+        jobType: "full-time",
+        company: companyBNew.name,
+        companyId: companyBNew._id,
+        facilityId: facilityB._id,
+        createdBy: owner._id,
+        status: "open",
+      });
+      appB = await Application.create({
+        jobId: jobB._id,
+        companyId: companyBNew._id,
+        facilityId: facilityB._id,
+        applicant: candidate._id,
+        firstName: "Jane",
+        lastName: "Candidate",
+        email: candidate.email,
+        phone: "555-0100",
+        status: "applied",
+      });
+    }
+    const appId = appB._id.toString();
+    await mongoose.disconnect();
+
+    const auth = await loginAs("recruiter@demo.com");
+    if (!auth) return;
+    const res = await fetch(`${BASE}/api/recruiter/applications/${appId}/status`, {
+      method: "PATCH",
+      headers: { ...auth.headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "reviewing" }),
+      credentials: "include",
+    });
+    assert.ok(res.status === 403 || res.status === 404, `Expected 403 or 404, got ${res.status}`);
+  });
+
+  it("3. Applicant A cannot download Applicant B document", async () => {
+    const uri = process.env.MONGODB_URI;
+    if (!uri) return;
+
+    const mongoose = require("mongoose");
+    const User = require("../models/User");
+    const CandidateDocument = require("../models/CandidateDocument");
+
+    await mongoose.connect(uri);
+    const candidateA = await User.findOne({ email: "candidate@demo.com" });
+    let candidateB = await User.findOne({ email: "candidate2-cross-tenant@demo.com" });
+    if (!candidateB) {
+      candidateB = await User.create({
+        name: "Candidate B",
+        email: "candidate2-cross-tenant@demo.com",
+        password: "Demo123!",
+        role: "applicant",
+      });
+    }
+    const doc = await CandidateDocument.create({
+      userId: candidateB._id,
+      type: "Resume",
+      fileUrl: "test-cross-tenant-" + Date.now() + ".pdf",
+      fileName: "resume.pdf",
+      mimeType: "application/pdf",
+      size: 0,
+    });
+    const docId = doc._id.toString();
+    await mongoose.disconnect();
+
+    const auth = await loginAs("candidate@demo.com");
+    if (!auth) return;
+    const res = await fetch(`${BASE}/api/documents/${docId}/download`, {
+      headers: auth.headers,
+      credentials: "include",
+    });
+    assert.ok(res.status === 403 || res.status === 404, `Expected 403 or 404, got ${res.status}`);
+
+    await mongoose.connect(uri);
+    await CandidateDocument.findByIdAndDelete(docId);
+    await mongoose.disconnect();
+  });
+
+  it("4. Applicant A cannot withdraw Applicant B application", async () => {
+    const uri = process.env.MONGODB_URI;
+    if (!uri) return;
+
+    const mongoose = require("mongoose");
+    const User = require("../models/User");
+    const Company = require("../models/Company");
+    const Facility = require("../models/Facility");
+    const Job = require("../models/Job");
+    const Application = require("../models/Application");
+
+    await mongoose.connect(uri);
+    const candidateA = await User.findOne({ email: "candidate@demo.com" });
+    let candidateB = await User.findOne({ email: "candidate2-cross-tenant@demo.com" });
+    if (!candidateB) {
+      candidateB = await User.create({
+        name: "Candidate B",
+        email: "candidate2-cross-tenant@demo.com",
+        password: "Demo123!",
+        role: "applicant",
+      });
+    }
+    const company = await Company.findOne({ ownerId: { $exists: true } });
+    const job = await Job.findOne({ companyId: company?._id });
+    if (!job || !candidateB) {
+      await mongoose.disconnect();
+      return;
+    }
+    const appB = await Application.create({
+      jobId: job._id,
+      companyId: job.companyId,
+      facilityId: job.facilityId || null,
+      applicant: candidateB._id,
+      firstName: "B",
+      lastName: "Test",
+      email: candidateB.email,
+      phone: "555-0199",
+      status: "applied",
+    });
+    const appId = appB._id.toString();
+    await mongoose.disconnect();
+
+    const auth = await loginAs("candidate@demo.com");
+    if (!auth) return;
+    const res = await fetch(`${BASE}/api/applications/${appId}/withdraw`, {
+      method: "PATCH",
+      headers: { ...auth.headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: "test" }),
+      credentials: "include",
+    });
+    assert.ok(res.status === 403 || res.status === 404, `Expected 403 or 404, got ${res.status}`);
+
+    await mongoose.connect(uri);
+    await Application.findByIdAndDelete(appId);
+    await mongoose.disconnect();
+  });
+
+  it("5. Recruiter cannot access /api/admin endpoints", async () => {
+    const auth = await loginAs("recruiter@demo.com");
+    if (!auth) return;
+    const res = await fetch(`${BASE}/api/admin/companies`, {
+      headers: auth.headers,
+      credentials: "include",
+    });
+    assert.strictEqual(res.status, 403, `Expected 403, got ${res.status}`);
+    const data = await res.json();
+    assert.strictEqual(data.success, false);
+  });
+
+  it("6. Recruiter in Company A cannot PATCH or DELETE Company B job", async () => {
+    const uri = process.env.MONGODB_URI;
+    if (!uri) return;
+
+    const mongoose = require("mongoose");
+    const User = require("../models/User");
+    const Company = require("../models/Company");
+    const Facility = require("../models/Facility");
+    const Job = require("../models/Job");
+    const RecruiterMembership = require("../models/RecruiterMembership");
+
+    await mongoose.connect(uri);
+    const owner = await User.findOne({ email: "owner@demo.com" });
+    const recruiter = await User.findOne({ email: "recruiter@demo.com" });
+    if (!owner || !recruiter) {
+      await mongoose.disconnect();
+      return;
+    }
+
+    const companyA = await Company.findOne({ ownerId: owner._id });
+    const mem = await RecruiterMembership.findOne({ userId: recruiter._id, status: "active" });
+    if (!companyA || !mem || mem.companyId.toString() !== companyA._id.toString()) {
+      await mongoose.disconnect();
+      return;
+    }
+
+    const companyB = await Company.create({
+      name: "Cross-Tenant Job Test Co " + Date.now(),
+      legalName: "Job Test B LLC",
+      ownerId: owner._id,
+      status: "active",
+    });
+    const facilityB = await Facility.create({
+      companyId: companyB._id,
+      name: "Facility Job B",
+      status: "active",
+    });
+    const jobB = await Job.create({
+      title: "Job Cross-Tenant",
+      description: "Test job for cross-tenant guard",
+      location: "Remote",
+      jobType: "full-time",
+      company: companyB.name,
+      companyId: companyB._id,
+      facilityId: facilityB._id,
+      createdBy: owner._id,
+      status: "open",
+    });
+    const jobId = jobB._id.toString();
+    await mongoose.disconnect();
+
+    const auth = await loginAs("recruiter@demo.com");
+    if (!auth) return;
+
+    const patchRes = await fetch(`${BASE}/api/jobs/${jobId}`, {
+      method: "PUT",
+      headers: { ...auth.headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Hacked", description: "x", location: "x", jobType: "full-time" }),
+      credentials: "include",
+    });
+    assert.ok(patchRes.status === 403 || patchRes.status === 404, `PATCH: Expected 403 or 404, got ${patchRes.status}`);
+
+    const deleteRes = await fetch(`${BASE}/api/jobs/${jobId}`, {
+      method: "DELETE",
+      headers: auth.headers,
+      credentials: "include",
+    });
+    assert.ok(deleteRes.status === 403 || deleteRes.status === 404, `DELETE: Expected 403 or 404, got ${deleteRes.status}`);
+
+    await mongoose.connect(uri);
+    await Job.deleteOne({ _id: jobId });
+    await Facility.deleteOne({ _id: facilityB._id });
+    await Company.deleteOne({ _id: companyB._id });
+    await mongoose.disconnect();
+  });
+});
+
 describe("File upload hardening", () => {
   const BASE = `http://localhost:${PORT}`;
 

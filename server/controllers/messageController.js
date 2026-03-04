@@ -147,6 +147,9 @@ exports.createOrFindThread = async (req, res) => {
         if (!applicantId && (req.user.role === ROLES.RECRUITER || req.user.role === ROLES.OWNER)) {
           return res.status(400).json({ success: false, message: "This applicant has no account to message. They applied without signing in." });
         }
+        if (req.user.role === ROLES.APPLICANT && applicantId !== req.user._id.toString()) {
+          return res.status(403).json({ success: false, message: "You can only start threads for your own applications" });
+        }
         const recruiterId = (req.user.role === ROLES.RECRUITER || req.user.role === ROLES.OWNER)
           ? req.user._id.toString()
           : app.jobId?.createdBy?.toString?.();
@@ -356,9 +359,9 @@ exports.getThread = async (req, res) => {
       (p) => p.userId?._id?.toString() === req.user._id.toString()
     );
     const companyIds = await getAccessibleCompanyIds(req.user._id.toString());
-    const hasCompanyAccess = companyIds.includes(thread.companyId?.toString());
+    const hasCompanyAccessForThread = companyIds.includes(thread.companyId?.toString());
 
-    if (!isParticipant && !hasCompanyAccess && req.user.role !== ROLES.OWNER) {
+    if (!isParticipant && !hasCompanyAccessForThread) {
       return res.status(403).json({ success: false, message: "Access denied" });
     }
 

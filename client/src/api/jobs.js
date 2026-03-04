@@ -28,6 +28,11 @@ export async function createJob(jobData) {
   return data;
 }
 
+export async function updateJob(jobId, jobData) {
+  const { data } = await api.put(`jobs/${jobId}`, jobData, { withCredentials: true });
+  return data;
+}
+
 export async function deleteJob(jobId) {
   const { data } = await api.delete(`jobs/${jobId}`, { withCredentials: true });
   return data;

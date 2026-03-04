@@ -5,6 +5,7 @@ import { isStaff } from "../constants/roles";
 import { BRAND } from "../config";
 import { useToast } from "../context/ToastContext";
 import { getMyJobs, deleteJob } from "../api/jobs";
+import { Link as RouterLink } from "react-router-dom";
 import { getApplicationsForJob, exportApplicationsForJob } from "../api/applications";
 import { createOrFindThreadByJobOrApplication } from "../api/messages";
 import StatusBadge from "../components/StatusBadge";
@@ -132,6 +133,7 @@ export default function MyJobs() {
                   <span className="my-job-card-meta">{job.company || BRAND.companyName} • {job.location || "—"} • Posted {job.createdAt ? new Date(job.createdAt).toLocaleDateString() : "Today"}</span>
                 </div>
                 <div className="my-job-card-actions">
+                  <Link to={`/jobs/${job._id}/edit`} className="my-job-card-edit-btn" title="Edit job">Edit</Link>
                   <span className="my-job-card-count">{job.applicationCount || 0} applicant{job.applicationCount !== 1 ? "s" : ""}</span>
                   <button
                     type="button"

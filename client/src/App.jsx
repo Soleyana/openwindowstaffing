@@ -12,6 +12,7 @@ import RedirectToDashboard from "./components/RedirectToDashboard";
 import Home from "./pages/Home";
 import Jobs from "./pages/Jobs";
 import PostJob from "./pages/PostJob";
+import JobEdit from "./pages/JobEdit";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -88,6 +89,7 @@ function AppContent() {
             <Route path="/jobs" element={<Jobs />} />
             <Route path="/healthcare-professionals" element={<HealthcareProfessionals />} />
             <Route path="/jobs/:id" element={<JobDetail />} />
+            <Route path="/jobs/:id/edit" element={<JobEdit />} />
             <Route path="/apply/:jobId" element={<ApplyJob />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
@@ -119,7 +121,7 @@ function AppContent() {
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/timesheets" element={<Timesheets />} />
               <Route path="/timesheets-inbox" element={<ProtectedRoute roles={["recruiter", "owner"]}><TimesheetsInbox /></ProtectedRoute>} />
-              <Route path="/invoices" element={<ProtectedRoute roles={["recruiter", "owner"]}><Invoices /></ProtectedRoute>} />
+              <Route path="/invoices" element={<ProtectedRoute roles={["recruiter", "owner"]}><ErrorBoundary fallbackLabel="Invoices"><Invoices /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/my-profile" element={<MyProfile />} />
               <Route path="/inbox" element={<Suspense fallback={<RouteFallback label="Loading inbox…" />}><ErrorBoundary fallbackLabel="Inbox"><Inbox /></ErrorBoundary></Suspense>} />
               <Route path="/candidates" element={<ProtectedRoute roles={["recruiter", "owner"]}><CandidateSearch /></ProtectedRoute>} />

@@ -7,19 +7,12 @@ const emailService = require("../services/emailService");
 const activityLogService = require("../services/activityLogService");
 const { ROLES, STAFF_ROLES } = require("../constants/roles");
 const { DEFAULT_STATUS } = require("../constants/applicationStatuses");
-const { toApplicantStatus } = require("../services/applicationService");
+const applicationService = require("../services/applicationService");
+const { toApplicantStatus } = applicationService;
 
 exports.getAllApplications = async (req, res) => {
   try {
-    let jobIds;
-    if (req.user.role === ROLES.OWNER) {
-      const allJobs = await Job.find({}).select("_id");
-      jobIds = allJobs.map((j) => j._id);
-    } else {
-      const recruiterJobs = await Job.find({ createdBy: req.user._id }).select("_id");
-      jobIds = recruiterJobs.map((j) => j._id);
-    }
-
+    const jobIds = await applicationService.getAccessibleJobIds(req.user);
     const applications = await Application.find({ jobId: { $in: jobIds } })
       .populate("jobId", "title")
       .sort({ createdAt: -1 })
@@ -249,7 +242,15 @@ exports.getApplicationsForJob = async (req, res) => {
       });
     }
 
-    if (job.createdBy.toString() !== req.user._id.toString()) {
+    const companyId = job.companyId?.toString();
+    const ownsJob = job.createdBy?.toString() === req.user._id.toString();
+    const isOwner = req.user.role === ROLES.OWNER;
+    let hasAccess = isOwner || ownsJob;
+    if (!hasAccess && companyId) {
+      const { allowed } = await hasCompanyAccess(req.user._id.toString(), companyId);
+      hasAccess = !!allowed;
+    }
+    if (!hasAccess) {
       return res.status(403).json({
         success: false,
         message: "Not authorized to view applications for this job",
@@ -383,13 +384,18 @@ exports.exportApplicationsCsv = async (req, res) => {
 exports.exportApplicationsForJob = async (req, res) => {
   try {
     const { jobId } = req.params;
-    const job = await Job.findById(jobId).select("title createdBy");
+    const job = await Job.findById(jobId).select("title createdBy companyId");
     if (!job) {
       return res.status(404).json({ success: false, message: "Job not found" });
     }
     const isOwner = req.user.role === ROLES.OWNER;
     const ownsJob = job.createdBy && job.createdBy.toString() === req.user._id.toString();
-    if (!isOwner && !ownsJob) {
+    let hasAccess = isOwner || ownsJob;
+    if (!hasAccess && job.companyId) {
+      const { allowed } = await hasCompanyAccess(req.user._id.toString(), job.companyId.toString());
+      hasAccess = !!allowed;
+    }
+    if (!hasAccess) {
       return res.status(403).json({ success: false, message: "Not authorized to export applications for this job" });
     }
 
@@ -592,10 +598,15 @@ exports.updateApplicationStatus = async (req, res) => {
       });
     }
 
-    const job = await Job.findById(application.jobId || application.job);
+    const job = await Job.findById(application.jobId || application.job).select("createdBy companyId").lean();
     const isOwner = req.user.role === ROLES.OWNER;
-    const ownsJob = job && job.createdBy.toString() === req.user._id.toString();
-    if (!job || (!isOwner && !ownsJob)) {
+    const ownsJob = job && job.createdBy?.toString() === req.user._id.toString();
+    let hasAccess = job && (isOwner || ownsJob);
+    if (!hasAccess && job?.companyId) {
+      const { allowed } = await hasCompanyAccess(req.user._id.toString(), job.companyId.toString());
+      hasAccess = !!allowed;
+    }
+    if (!job || !hasAccess) {
       return res.status(403).json({
         success: false,
         message: "Not authorized to update this application",

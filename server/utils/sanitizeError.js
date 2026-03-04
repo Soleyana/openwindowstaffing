@@ -1,9 +1,14 @@
 /**
  * Sanitize error messages before sending to client.
- * Prevents raw MongoDB/database errors (e.g. "bad auth : authentication failed") from being exposed.
+ * Prevents raw MongoDB/database errors from being exposed.
  */
 function sanitizeErrorMessage(err, fallback = "Something went wrong") {
+  if (!err) return fallback;
   const raw = (err?.message || "").toLowerCase();
+  const code = err?.code;
+  if (code === 11000 || raw.includes("e11000") || raw.includes("duplicate key")) {
+    return "A record with this value already exists.";
+  }
   const isDbError =
     raw.includes("bad auth") ||
     raw.includes("authentication failed") ||

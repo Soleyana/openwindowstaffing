@@ -55,12 +55,18 @@ router.get("/:id/resume", requireAuth, async (req, res) => {
     const isStaff = req.user.role === ROLES.RECRUITER || req.user.role === ROLES.OWNER;
     const applicantOwns = app.applicant && app.applicant.toString() === req.user._id.toString();
     const emailMatch = app.email && app.email.toLowerCase() === (req.user.email || "").toLowerCase();
-    const staffHasJob = isStaff && app.jobId && (
-      req.user.role === ROLES.OWNER ||
-      (app.jobId.createdBy && app.jobId.createdBy.toString() === req.user._id.toString())
-    );
 
-    if (!((isApplicant && (applicantOwns || emailMatch)) || staffHasJob)) {
+    let staffHasAccess = false;
+    if (isStaff && app.companyId) {
+      const { hasCompanyAccess } = require("../services/companyAccessService");
+      const { allowed } = await hasCompanyAccess(req.user._id.toString(), app.companyId.toString());
+      staffHasAccess = !!allowed;
+    }
+    if (isStaff && !staffHasAccess && app.jobId?.createdBy?.toString() === req.user._id.toString()) {
+      staffHasAccess = true;
+    }
+
+    if (!((isApplicant && (applicantOwns || emailMatch)) || staffHasAccess)) {
       return res.status(403).json({ success: false, message: "Not authorized to access this resume" });
     }
 

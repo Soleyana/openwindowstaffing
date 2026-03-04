@@ -63,6 +63,8 @@ exports.requestInvoice = async (req, res) => {
 
     await emailService.sendEmail(billingEmail, `Invoice request: ${companyName}`, html, {
       replyTo: req.user?.email,
+      requestId: req.requestId,
+      caller: "invoice_request",
     });
 
     await activityLogService.logFromReq(req, {
@@ -316,7 +318,7 @@ exports.issueInvoice = async (req, res) => {
     const billingEmail = invoice.companyId?.billingEmail || CONTACT_EMAIL;
     if (billingEmail) {
       const html = `Invoice ${invoice.invoiceNumber} has been issued. Total: $${invoice.total?.toFixed(2) || "0.00"}.`;
-      emailService.sendEmail(billingEmail, `Invoice ${invoice.invoiceNumber} issued`, html).catch(() => {});
+      emailService.sendEmail(billingEmail, `Invoice ${invoice.invoiceNumber} issued`, html, { requestId: req.requestId, caller: "invoice_issued" }).catch(() => {});
     }
 
     const updated = await Invoice.findById(req.params.id).populate("companyId", "name").lean();

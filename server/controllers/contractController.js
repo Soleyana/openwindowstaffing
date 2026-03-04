@@ -10,7 +10,7 @@ const activityLogService = require("../services/activityLogService");
 const emailService = require("../services/emailService");
 const { sanitizeErrorMessage } = require("../utils/sanitizeError");
 const { ROLES, STAFF_ROLES } = require("../constants/roles");
-const { CLIENT_URL } = require("../config/env");
+const { getClientUrl } = require("../config/env");
 
 function toIdString(val) {
   if (!val) return null;
@@ -231,7 +231,7 @@ exports.sendContract = async (req, res) => {
       { $set: { status: "sent", sentAt: new Date() } }
     );
 
-    const baseUrl = CLIENT_URL || "http://localhost:5173";
+    const baseUrl = getClientUrl();
     const signUrl = `${baseUrl}/contract/${contract._id}/sign`;
 
     const candidate = await User.findById(contract.candidateId)

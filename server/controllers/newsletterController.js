@@ -24,6 +24,13 @@ exports.subscribe = async (req, res) => {
       return res.status(400).json({ success: false, message: "Valid email is required" });
     }
 
+    const { getClientUrl } = require("../config/env");
+    const getUnsubscribeHtml = (unsubscribeUrl) => `
+      <p>You've subscribed to our newsletter.</p>
+      <p>To unsubscribe: <a href="${unsubscribeUrl}">Click here</a></p>
+      <p>— ${process.env.DEFAULT_COMPANY || "Staffing Platform"}</p>
+    `;
+
     let sub = await NewsletterSubscription.findOne({ email });
     if (sub) {
       if (sub.status === "unsubscribed") {
@@ -31,6 +38,9 @@ exports.subscribe = async (req, res) => {
         sub.unsubscribedAt = null;
         sub.unsubscribeToken = crypto.randomBytes(32).toString("hex");
         await sub.save();
+        const unsubscribeUrl = `${getClientUrl()}/unsubscribe?token=${sub.unsubscribeToken}`;
+        const sent = await emailService.sendEmail(email, "Newsletter subscription confirmed", getUnsubscribeHtml(unsubscribeUrl), { caller: "newsletter_resubscribe", requestId: req.requestId });
+        logger.info({ email: email.replace(/(.{2}).*(@.*)/, "$1***$2"), sent }, "[Newsletter] Resubscribe email");
       }
       return res.status(200).json({
         success: true,
@@ -45,18 +55,13 @@ exports.subscribe = async (req, res) => {
       status: "active",
     });
 
-    const { CLIENT_URL } = require("../config/env");
-    const unsubscribeUrl = `${CLIENT_URL || "https://example.com"}/unsubscribe?token=${token}`;
-    const html = `
-      <p>You've subscribed to our newsletter.</p>
-      <p>To unsubscribe: <a href="${unsubscribeUrl}">Click here</a></p>
-      <p>— ${process.env.DEFAULT_COMPANY || "Staffing Platform"}</p>
-    `;
-    emailService.sendEmail(email, "Newsletter subscription confirmed", html).catch(() => {});
+    const unsubscribeUrl = `${getClientUrl()}/unsubscribe?token=${token}`;
+    const sent = await emailService.sendEmail(email, "Newsletter subscription confirmed", getUnsubscribeHtml(unsubscribeUrl), { caller: "newsletter_subscribe", requestId: req.requestId });
+    logger.info({ email: email.replace(/(.{2}).*(@.*)/, "$1***$2"), sent }, "[Newsletter] Subscribe confirmation email");
 
     res.status(201).json({
       success: true,
-      message: "You're subscribed. Check your inbox for confirmation.",
+      message: sent ? "You're subscribed. Check your inbox for confirmation." : "You're subscribed. If you don't see our email, check spam or contact support.",
     });
   } catch (error) {
     logger.error({ err: error.message }, "Newsletter subscribe error");

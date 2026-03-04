@@ -284,6 +284,19 @@ const startServer = async () => {
   app.listen(PORT, async () => {
     logger.info(`Server running on port ${PORT}`);
     logger.info({ mountedRoutes: ROUTE_PREFIXES }, "Mounted route prefixes");
+    const resendSet = Boolean(process.env.RESEND_API_KEY);
+    const emailDisabled = process.env.EMAIL_DISABLED === "true" || process.env.EMAIL_DISABLED === "1";
+    if (!resendSet) {
+      logger.warn("Email: RESEND_API_KEY not set – newsletter, password reset, contact form emails will not be sent. Add to .env from https://resend.com/api-keys");
+    } else if (emailDisabled) {
+      logger.info("Email: disabled (EMAIL_DISABLED=true)");
+    } else {
+      const from = process.env.EMAIL_FROM || process.env.FROM_EMAIL || "onboarding@resend.dev";
+      logger.info({ from }, "Email: ready");
+      if (from === "onboarding@resend.dev") {
+        logger.warn("Email: Using Resend sandbox – you can only send TO delivered@resend.dev (or other @resend.dev test addresses). Verify your domain at https://resend.com/domains to send to real emails.");
+      }
+    }
     try {
       const { startJobs } = require("./jobs");
       await startJobs();

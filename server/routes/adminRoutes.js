@@ -6,5 +6,6 @@ const adminController = require("../controllers/adminController");
 router.use(requireAuth, requirePlatformAdmin);
 router.get("/companies", adminController.getAllCompanies);
 router.get("/system", adminController.getSystemInfo);
+router.post("/test-email", adminController.sendTestEmail);
 
 module.exports = router;

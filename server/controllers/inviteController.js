@@ -1,12 +1,14 @@
 const Invite = require("../models/Invite");
 const User = require("../models/User");
+const Company = require("../models/Company");
 const RecruiterMembership = require("../models/RecruiterMembership");
 const { sanitizeErrorMessage } = require("../utils/sanitizeError");
 const activityLogService = require("../services/activityLogService");
 const { hasCompanyAccess } = require("../services/companyAccessService");
-const { CLIENT_URL, isProduction } = require("../config/env");
+const { getClientUrl } = require("../config/env");
 const { ROLES } = require("../constants/roles");
 const authService = require("../services/authService");
+const emailService = require("../services/emailService");
 
 exports.createInvite = async (req, res) => {
   try {
@@ -43,25 +45,62 @@ exports.createInvite = async (req, res) => {
       }
     }
 
-    const existingInvite = await Invite.findOne({
-      email: normalizedEmail,
-      companyId,
-      used: false,
-      expiresAt: { $gt: new Date() },
-    });
+    const pendingQuery = { email: normalizedEmail, companyId, used: false, status: "active", expiresAt: { $gt: new Date() } };
+    let existingInvite = await Invite.findOne(pendingQuery);
+
     if (existingInvite) {
-      return res.status(400).json({
-        success: false,
-        message: "An invite is already pending for this email to this company.",
+      const plainToken = authService.generateInviteToken();
+      existingInvite.tokenHash = Invite.hashToken(plainToken);
+      existingInvite.expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+      await existingInvite.save();
+
+      const baseUrl = getClientUrl();
+      const inviteUrl = `${baseUrl}/invite/${plainToken}`;
+
+      const company = await Company.findById(companyId).select("name").lean();
+      emailService.sendInviteToRecruiter(normalizedEmail, inviteUrl, company?.name, { requestId: req.requestId }).catch(() => {});
+
+      return res.status(200).json({
+        success: true,
+        message: "Invite already pending. Use this link (or revoke and create new).",
+        data: {
+          email: existingInvite.email,
+          inviteLink: inviteUrl,
+          expiresAt: existingInvite.expiresAt,
+          alreadyExists: true,
+        },
+        requestId: req.requestId,
       });
     }
 
+    let invite;
     const plainToken = authService.generateInviteToken();
-    const invite = await Invite.createInviteRecord(normalizedEmail, plainToken, req.user._id, companyId, inviteRole);
+    try {
+      invite = await Invite.createInviteRecord(normalizedEmail, plainToken, req.user._id, companyId, inviteRole);
+    } catch (createErr) {
+      if (createErr.code === 11000) {
+        existingInvite = await Invite.findOne(pendingQuery);
+        if (existingInvite) {
+          const newToken = authService.generateInviteToken();
+          existingInvite.tokenHash = Invite.hashToken(newToken);
+          existingInvite.expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+          await existingInvite.save();
+          const baseUrl = getClientUrl();
+          const inviteUrl = `${baseUrl}/invite/${newToken}`;
+          const company = await Company.findById(companyId).select("name").lean();
+          emailService.sendInviteToRecruiter(normalizedEmail, inviteUrl, company?.name, { requestId: req.requestId }).catch(() => {});
+          return res.status(200).json({
+            success: true,
+            message: "Invite already pending. Use this link.",
+            data: { email: existingInvite.email, inviteLink: inviteUrl, expiresAt: existingInvite.expiresAt, alreadyExists: true },
+            requestId: req.requestId,
+          });
+        }
+      }
+      throw createErr;
+    }
 
-    const baseUrl = CLIENT_URL || (!isProduction ? "http://localhost:5176" : null);
-    if (!baseUrl) throw new Error("CLIENT_URL is required in production.");
-
+    const baseUrl = getClientUrl();
     const inviteUrl = `${baseUrl}/invite/${plainToken}`;
 
     await activityLogService.logFromReq(req, {
@@ -72,19 +111,20 @@ exports.createInvite = async (req, res) => {
       message: `Invite sent to ${invite.email}`,
     });
 
+    const company = await Company.findById(companyId).select("name").lean();
+    emailService.sendInviteToRecruiter(normalizedEmail, inviteUrl, company?.name, { requestId: req.requestId }).catch(() => {});
+
     res.status(201).json({
       success: true,
       message: "Invite created. Share the link with this person.",
-      data: {
-        email: invite.email,
-        inviteLink: inviteUrl,
-        expiresAt: invite.expiresAt,
-      },
+      data: { email: invite.email, inviteLink: inviteUrl, expiresAt: invite.expiresAt },
+      requestId: req.requestId,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       message: sanitizeErrorMessage(error, "Failed to create invite"),
+      requestId: req.requestId,
     });
   }
 };
@@ -144,8 +184,11 @@ exports.resendInvite = async (req, res) => {
     invite.expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
     await invite.save();
 
-    const baseUrl = CLIENT_URL || (!isProduction ? "http://localhost:5176" : null);
-    const inviteUrl = baseUrl ? `${baseUrl}/invite/${plainToken}` : null;
+    const baseUrl = getClientUrl();
+    const inviteUrl = `${baseUrl}/invite/${plainToken}`;
+
+    const company = await Company.findById(invite.companyId).select("name").lean();
+    emailService.sendInviteToRecruiter(invite.email, inviteUrl, company?.name, { requestId: req.requestId }).catch(() => {});
 
     res.status(200).json({
       success: true,

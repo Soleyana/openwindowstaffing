@@ -133,7 +133,8 @@ async function startJobs() {
         const Notification = require("../models/Notification");
         const complianceService = require("../services/complianceService");
         const emailService = require("../services/emailService");
-        const CLIENT_URL = process.env.CLIENT_URL;
+        const { getClientUrl } = require("../config/env");
+        const baseUrl = getClientUrl();
 
         const companies = await Company.find({}).select("_id complianceConfig").lean();
         const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -167,7 +168,7 @@ async function startJobs() {
               user.email,
               user.name,
               result.expiringSoon,
-              CLIENT_URL ? `${CLIENT_URL}/my-profile` : null
+              `${baseUrl}/my-profile`
             );
 
             await ActivityLog.create({

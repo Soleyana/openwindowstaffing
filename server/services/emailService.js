@@ -2,8 +2,9 @@
  * Email service. Uses Resend when RESEND_API_KEY is set.
  * Logs via logger when no key (dev). Never crashes on send failure.
  * Uses EMAIL_FROM and optionally EMAIL_REPLY_TO from env.
+ * TEST_EMAIL_OVERRIDE: when set, all emails go to that address (testing only).
  */
-const { RESEND_API_KEY, EMAIL_FROM, EMAIL_REPLY_TO, COMPANY_NAME, CLIENT_URL, EMAIL_DISABLED } = require("../config/env");
+const { RESEND_API_KEY, EMAIL_FROM, EMAIL_REPLY_TO, COMPANY_NAME, getClientUrl, EMAIL_DISABLED, TEST_EMAIL_OVERRIDE } = require("../config/env");
 const logger = require("../utils/logger");
 
 let resendClient = null;
@@ -16,35 +17,48 @@ if (RESEND_API_KEY) {
   }
 }
 
+if (TEST_EMAIL_OVERRIDE) {
+  logger.warn({ to: TEST_EMAIL_OVERRIDE.replace(/(.{2}).*(@.*)/, "$1***$2") }, "[Email] TEST_EMAIL_OVERRIDE active – all emails redirected");
+}
+
 /**
  * Send an email. Fails silently - log errors, don't throw.
  * @param {string} to - Recipient email
  * @param {string} subject - Subject line
  * @param {string} html - HTML body
- * @param {{ replyTo?: string }} [opts] - Optional replyTo address
+ * @param {{ replyTo?: string, caller?: string, requestId?: string }} [opts] - Optional opts
  * @returns {Promise<boolean>} - true if sent (or no provider), false on error
  */
 async function sendEmail(to, subject, html, opts = {}) {
+  const originalTo = to;
+  const effectiveTo = TEST_EMAIL_OVERRIDE ? TEST_EMAIL_OVERRIDE.trim() : to;
+
   if (!to || typeof to !== "string" || !to.includes("@")) {
     logger.warn({ to }, "[Email] Invalid recipient");
     return false;
   }
 
+  const logMeta = { to: effectiveTo.replace(/(.{2}).*(@.*)/, "$1***$2"), caller: opts.caller || "unknown", requestId: opts.requestId };
+
   if (EMAIL_DISABLED) {
-    logger.info({ to, subject }, "[Email] Disabled (EMAIL_DISABLED=true) – would send");
+    logger.info({ ...logMeta, subject }, "[Email] Disabled (EMAIL_DISABLED=true) – would send");
     return true;
   }
 
   if (!resendClient) {
-    logger.info({ to, subject }, "[Email] No RESEND_API_KEY – would send");
+    logger.info({ ...logMeta, subject }, "[Email] No RESEND_API_KEY – would send");
     return true;
+  }
+
+  if (TEST_EMAIL_OVERRIDE) {
+    logger.info({ ...logMeta, intendedRecipient: originalTo.replace(/(.{2}).*(@.*)/, "$1***$2") }, "[Email] Override active – redirecting");
   }
 
   try {
     const from = `${COMPANY_NAME} <${EMAIL_FROM}>`;
     const payload = {
       from,
-      to: [to.trim()],
+      to: [effectiveTo.trim()],
       subject: String(subject || "Message").slice(0, 200),
       html: String(html || "").slice(0, 50000),
     };
@@ -53,12 +67,13 @@ async function sendEmail(to, subject, html, opts = {}) {
     }
     const { data, error } = await resendClient.emails.send(payload);
     if (error) {
-      logger.error({ err: error.message }, "[Email] Send failed");
+      logger.error({ ...logMeta, err: error.message, resendCode: error?.statusCode }, "[Email] Send failed");
       return false;
     }
+    logger.info({ ...logMeta, resendId: data?.id }, "[Email] Sent");
     return true;
   } catch (err) {
-    logger.error({ err: err.message }, "[Email] Send error");
+    logger.error({ ...logMeta, err: err.message }, "[Email] Send error");
     return false;
   }
 }
@@ -75,8 +90,20 @@ async function sendApplicationConfirmation(applicantEmail, applicantName, jobTit
   return sendEmail(applicantEmail, subject, html);
 }
 
+/** Recruiter invite – send invite link to invitee */
+async function sendInviteToRecruiter(inviteeEmail, inviteUrl, companyName, opts = {}) {
+  const subject = `You're invited to join ${escapeHtml(companyName || COMPANY_NAME)}`;
+  const html = `
+    <p>You've been invited to become a recruiter for <strong>${escapeHtml(companyName || COMPANY_NAME)}</strong>.</p>
+    <p><a href="${escapeHtml(inviteUrl)}">Accept your invite</a></p>
+    <p>This link expires in 48 hours. If you didn't expect this invite, you can ignore this email.</p>
+    <p>— ${escapeHtml(COMPANY_NAME)}</p>
+  `;
+  return sendEmail(inviteeEmail, subject, html, { ...opts, caller: opts.caller || "invite" });
+}
+
 /** Password reset link */
-async function sendPasswordResetLink(email, resetUrl) {
+async function sendPasswordResetLink(email, resetUrl, opts = {}) {
   const subject = "Reset your password";
   const html = `
     <p>You requested a password reset for your ${escapeHtml(COMPANY_NAME)} account.</p>
@@ -85,11 +112,11 @@ async function sendPasswordResetLink(email, resetUrl) {
     <p>If you didn't request this, you can ignore this email.</p>
     <p>— ${escapeHtml(COMPANY_NAME)}</p>
   `;
-  return sendEmail(email, subject, html);
+  return sendEmail(email, subject, html, { ...opts, caller: opts.caller || "password_reset" });
 }
 
 /** Contact form – notify internal team. replyTo = submitter for easy reply. */
-async function sendContactNotification(fromName, fromEmail, subject, message) {
+async function sendContactNotification(fromName, fromEmail, subject, message, opts = {}) {
   const { CONTACT_EMAIL } = require("../config/env");
   const to = CONTACT_EMAIL || EMAIL_FROM;
   const subj = subject ? `Contact: ${subject}` : "Contact form submission";
@@ -99,7 +126,7 @@ async function sendContactNotification(fromName, fromEmail, subject, message) {
     <hr/>
     <pre>${escapeHtml(message)}</pre>
   `;
-  return sendEmail(to, subj, html, { replyTo: fromEmail });
+  return sendEmail(to, subj, html, { ...opts, replyTo: fromEmail, caller: opts.caller || "contact" });
 }
 
 /** Status change notification to applicant */
@@ -142,25 +169,26 @@ async function sendJobExpiredNotification(recruiterEmail, recruiterName, jobTitl
 async function sendJobAlertsDigest(subscriberEmail, jobs, keywords) {
   if (!jobs || jobs.length === 0) return true;
   const subject = `Your weekly job digest – ${jobs.length} new job${jobs.length === 1 ? "" : "s"}`;
+  const baseUrl = getClientUrl();
   const listItems = jobs.slice(0, 20).map((j) => {
     const title = escapeHtml(j.title || "Position");
     const company = escapeHtml(j.company || "");
     const loc = escapeHtml(j.location || "");
-    const url = CLIENT_URL ? `${CLIENT_URL}/jobs/${j._id}` : "#";
+    const url = `${baseUrl}/jobs/${j._id}`;
     return `<li><a href="${escapeHtml(url)}">${title}</a> – ${company} | ${loc}</li>`;
   }).join("");
   const html = `
     <p>Here are new jobs${keywords ? ` matching "${escapeHtml(keywords)}"` : ""} posted this week:</p>
     <ul>${listItems}</ul>
-    ${jobs.length > 20 ? `<p>…and ${jobs.length - 20} more. <a href="${CLIENT_URL || ""}/jobs">Browse all jobs</a>.</p>` : ""}
+    ${jobs.length > 20 ? `<p>…and ${jobs.length - 20} more. <a href="${escapeHtml(baseUrl)}/jobs">Browse all jobs</a>.</p>` : ""}
     <p>— ${escapeHtml(COMPANY_NAME)}</p>
   `;
   return sendEmail(subscriberEmail, subject, html);
 }
 
 /** Job offer email to candidate (Offer model - links to My Offers) */
-async function sendOfferToCandidate(candidateEmail, candidateName, jobTitle) {
-  const baseUrl = CLIENT_URL || "http://localhost:5173";
+async function sendOfferToCandidate(candidateEmail, candidateName, jobTitle, opts = {}) {
+  const baseUrl = getClientUrl();
   const offersUrl = `${baseUrl}/my-offers`;
   const subject = `Job offer – ${jobTitle}`;
   const html = `
@@ -169,12 +197,12 @@ async function sendOfferToCandidate(candidateEmail, candidateName, jobTitle) {
     <p><a href="${escapeHtml(offersUrl)}">View and respond to your offer</a></p>
     <p>— ${escapeHtml(COMPANY_NAME)}</p>
   `;
-  return sendEmail(candidateEmail, subject, html);
+  return sendEmail(candidateEmail, subject, html, { ...opts, caller: opts.caller || "offer" });
 }
 
 /** Assignment offer email to candidate */
-async function sendAssignmentOffer(candidateEmail, candidateName, jobTitle, assignmentId) {
-  const baseUrl = CLIENT_URL || "http://localhost:5173";
+async function sendAssignmentOffer(candidateEmail, candidateName, jobTitle, assignmentId, opts = {}) {
+  const baseUrl = getClientUrl();
   const acceptUrl = `${baseUrl}/my-assignments?offer=${assignmentId}`;
   const subject = `Job offer – ${jobTitle}`;
   const html = `
@@ -183,7 +211,7 @@ async function sendAssignmentOffer(candidateEmail, candidateName, jobTitle, assi
     <p><a href="${escapeHtml(acceptUrl)}">View and accept this offer</a></p>
     <p>— ${escapeHtml(COMPANY_NAME)}</p>
   `;
-  return sendEmail(candidateEmail, subject, html);
+  return sendEmail(candidateEmail, subject, html, { ...opts, caller: opts.caller || "assignment_offer" });
 }
 
 /** Contract signing link to candidate */
@@ -211,10 +239,11 @@ async function sendCredentialExpiryReminder(candidateEmail, docType, expiresAt, 
 }
 
 /** Compliance expiring soon – multiple doc types */
-async function sendComplianceExpiringNotice(candidateEmail, candidateName, expiringItems, profileUrl) {
+async function sendComplianceExpiringNotice(candidateEmail, candidateName, expiringItems, profileUrl, opts = {}) {
   const list = expiringItems.map((e) => `${e.type}${e.expiresAt ? ` (expires ${new Date(e.expiresAt).toLocaleDateString()})` : ""}`).join(", ");
   const subject = "Compliance documents expiring soon";
-  const profileLink = profileUrl || (CLIENT_URL ? `${CLIENT_URL}/my-profile` : "");
+  const baseUrl = getClientUrl();
+  const profileLink = profileUrl || `${baseUrl}/my-profile`;
   const html = `
     <p>Hi ${escapeHtml(candidateName || "there")},</p>
     <p>The following documents need to be renewed soon: <strong>${escapeHtml(list)}</strong>.</p>
@@ -237,6 +266,7 @@ function escapeHtml(str) {
 module.exports = {
   sendEmail,
   sendApplicationConfirmation,
+  sendInviteToRecruiter,
   sendPasswordResetLink,
   sendOfferToCandidate,
   sendContractToCandidate,

@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { createJob, getMyJobs } from "../api/jobs";
+import { createJob, updateJob, getMyJobs } from "../api/jobs";
 
-export default function JobPostForm() {
+export default function JobPostForm({ editJob, onSuccess }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const toast = useToast();
+  const isEdit = !!editJob;
   const [companyType, setCompanyType] = useState("new");
   const [existingCompanies, setExistingCompanies] = useState([]);
   const [title, setTitle] = useState("");
@@ -25,24 +26,39 @@ export default function JobPostForm() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const draft = localStorage.getItem("openwindow_job_draft");
-    if (draft) {
-      try {
-        const d = JSON.parse(draft);
-        if (d.title) setTitle(d.title);
-        if (d.description) setDescription(d.description);
-        if (d.location) setLocation(d.location);
-        if (d.jobType) setJobType(d.jobType);
-        if (d.category) setCategory(d.category);
-        if (d.company) setCompany(d.company);
-        if (d.companyWebsite) setCompanyWebsite(d.companyWebsite);
-        if (d.companyEmail) setCompanyEmail(d.companyEmail);
-        if (d.companyContactPhone) setCompanyContactPhone(d.companyContactPhone);
-        if (d.payRate) setPayRate(d.payRate);
-        if (d.expiresAt) setExpiresAt(d.expiresAt);
-      } catch (_) {}
+    if (editJob) {
+      setTitle(editJob.title || "");
+      setDescription(editJob.description || "");
+      setLocation(editJob.location || "");
+      setJobType(editJob.jobType || "full-time");
+      setCategory(editJob.category || "nursing");
+      setCompany(editJob.company || "");
+      setCompanyWebsite(editJob.companyWebsite || "");
+      setCompanyEmail(editJob.companyEmail || "");
+      setCompanyContactPhone(editJob.companyContactPhone || "");
+      setPayRate(editJob.payRate || "");
+      setExpiresAt(editJob.expiresAt ? editJob.expiresAt.slice(0, 10) : "");
+      if (editJob.company) setCompanyType("new");
+    } else {
+      const draft = localStorage.getItem("openwindow_job_draft");
+      if (draft) {
+        try {
+          const d = JSON.parse(draft);
+          if (d.title) setTitle(d.title);
+          if (d.description) setDescription(d.description);
+          if (d.location) setLocation(d.location);
+          if (d.jobType) setJobType(d.jobType);
+          if (d.category) setCategory(d.category);
+          if (d.company) setCompany(d.company);
+          if (d.companyWebsite) setCompanyWebsite(d.companyWebsite);
+          if (d.companyEmail) setCompanyEmail(d.companyEmail);
+          if (d.companyContactPhone) setCompanyContactPhone(d.companyContactPhone);
+          if (d.payRate) setPayRate(d.payRate);
+          if (d.expiresAt) setExpiresAt(d.expiresAt);
+        } catch (_) {}
+      }
     }
-  }, []);
+  }, [editJob]);
 
   useEffect(() => {
     if (!user) return;
@@ -70,24 +86,31 @@ export default function JobPostForm() {
     e.preventDefault();
     setError("");
     setLoading(true);
+    const payload = {
+      title,
+      description,
+      location,
+      jobType,
+      category,
+      company: company || undefined,
+      companyWebsite: companyWebsite || undefined,
+      companyEmail: companyEmail || undefined,
+      companyContactPhone: companyContactPhone || undefined,
+      payRate: payRate || undefined,
+      expiresAt: expiresAt || undefined,
+    };
     try {
-      await createJob({
-        title,
-        description,
-        location,
-        jobType,
-        category,
-        company: company || undefined,
-        companyWebsite: companyWebsite || undefined,
-        companyEmail: companyEmail || undefined,
-        companyContactPhone: companyContactPhone || undefined,
-        payRate: payRate || undefined,
-        expiresAt: expiresAt || undefined,
-      });
-      localStorage.removeItem("openwindow_job_draft");
-      navigate("/jobs");
+      if (isEdit) {
+        const res = await updateJob(editJob._id, payload);
+        localStorage.removeItem("openwindow_job_draft");
+        onSuccess?.(res.data);
+      } else {
+        await createJob(payload);
+        localStorage.removeItem("openwindow_job_draft");
+        navigate("/jobs");
+      }
     } catch (err) {
-      setError(err.message || "Failed to post job");
+      setError(err.response?.data?.message || err.message || (isEdit ? "Failed to update job" : "Failed to post job"));
     } finally {
       setLoading(false);
     }
@@ -290,6 +313,7 @@ export default function JobPostForm() {
       </section>
 
       <div className="job-post-form-footer">
+        {!isEdit && (
         <button
           type="button"
           className="job-post-draft-btn"
@@ -301,6 +325,7 @@ export default function JobPostForm() {
         >
           Save Draft
         </button>
+        )}
         <div className="job-post-step-indicator">
           <span className="job-post-step">
             <span className="job-post-step-num job-post-step-num--active">1</span>
@@ -314,7 +339,7 @@ export default function JobPostForm() {
         </div>
         <div className="job-post-actions">
           <button type="submit" className="job-post-preview-btn" disabled={loading}>
-            {loading ? "Posting…" : "Preview Listing"}
+            {loading ? (isEdit ? "Saving…" : "Posting…") : (isEdit ? "Save Changes" : "Preview Listing")}
           </button>
         </div>
       </div>
