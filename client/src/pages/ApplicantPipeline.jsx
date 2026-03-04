@@ -23,7 +23,7 @@ import {
   PIPELINE_STATUSES,
   PIPELINE_COLUMN_LABELS,
 } from "../constants/applicationStatuses";
-import { API_BASE_URL } from "../config";
+import { API_BASE } from "../api/config";
 
 const COMPLIANCE_BADGE = {
   cleared: "badge-compliance-cleared",
@@ -215,7 +215,7 @@ function ApplicantDrawer({ app, onClose, onStatusChange, onNoteAdded }) {
             <section className="pipeline-drawer-section">
               <h3>Resume</h3>
               <a
-                href={`${API_BASE_URL || ""}/api/applications/${app._id}/resume`}
+                href={`${API_BASE}/applications/${app._id}/resume`}
                 target="_blank"
                 rel="noreferrer"
               >

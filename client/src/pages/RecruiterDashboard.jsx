@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { getAllApplications, updateApplicationStatus } from "../api/applicationApi";
-import { API_BASE_URL } from "../config";
+import { API_BASE } from "../api/config";
 import StatusBadge from "../components/StatusBadge";
 
 export default function RecruiterDashboard() {
@@ -83,7 +83,7 @@ export default function RecruiterDashboard() {
                   <td>
                     {app.resumeUrl ? (
                       <a
-                        href={`${API_BASE_URL || ""}/api/applications/${app._id}/resume`}
+                        href={`${API_BASE}/applications/${app._id}/resume`}
                         target="_blank"
                         rel="noreferrer"
                       >

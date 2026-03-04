@@ -51,6 +51,9 @@ const { csrfMiddleware } = require("./middleware/csrf");
 
 const app = express();
 
+/* Render proxy: trust X-Forwarded-* headers */
+app.set("trust proxy", 1);
+
 /* Security headers - CSP minimal to avoid breaking API/JSON responses */
 app.use(helmet({
   contentSecurityPolicy: false,
@@ -58,21 +61,28 @@ app.use(helmet({
 }));
 
 app.use(requestIdMiddleware);
-/* CORS: production must use explicit allowlist, never wildcard */
-const corsOrigin = CORS_ORIGINS.length > 0
-  ? CORS_ORIGINS
-  : isProduction
-    ? (process.env.CLIENT_URL ? [process.env.CLIENT_URL] : [])
-    : true;
-if (isProduction && (corsOrigin === true || (Array.isArray(corsOrigin) && corsOrigin.length === 0))) {
-  logger.warn("Production CORS: no explicit origins. Set CORS_ORIGINS or CLIENT_URL.");
-}
-app.use(cors({
-  origin: corsOrigin,
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Request-Id", "X-CSRF-Token"],
-}));
+/* CORS: allowlist from env. Set CORS_ORIGINS (comma-separated) in Render. */
+const defaultOrigins = ["http://localhost:5173", "http://localhost:5176"];
+const allOrigins =
+  CORS_ORIGINS?.length > 0
+    ? CORS_ORIGINS
+    : isProduction
+      ? (process.env.CLIENT_URL ? [process.env.CLIENT_URL] : defaultOrigins)
+      : defaultOrigins;
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Request-Id", "X-CSRF-Token"],
+  })
+);
 app.use((req, res, next) => {
   const start = Date.now();
   res.on("finish", () => {
@@ -124,7 +134,7 @@ if (process.env.NODE_ENV !== "production") {
         secure: opts.secure,
         sameSite: opts.sameSite,
       },
-      allowedOrigins: Array.isArray(corsOrigin) ? corsOrigin : "(dynamic/true)",
+      allowedOrigins: allOrigins,
       isCrossSiteCookiesEnabled: isCrossSiteCookiesEnabled(),
     });
   });
