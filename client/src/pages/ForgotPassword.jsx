@@ -20,7 +20,7 @@ export default function ForgotPassword() {
       await forgotPassword(email.trim());
       setSent(true);
     } catch (err) {
-      setError(err.response?.data?.message || err.message || "Something went wrong");
+      setError(err?.response?.data?.message || err?.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }

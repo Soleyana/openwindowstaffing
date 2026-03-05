@@ -5,7 +5,6 @@ import { PASSWORD_RULES } from "../config";
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const token = searchParams.get("token");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -71,7 +70,7 @@ export default function ResetPassword() {
       <div className="auth-page">
         <div className="auth-card">
           <h1 className="auth-title">Invalid Link</h1>
-          <p className="auth-error">{error}</p>
+          <p className="auth-error">{error || "Invalid reset link. Request a new one from the forgot password page."}</p>
           <p className="auth-switch">
             <Link to="/forgot-password">Request a new reset link</Link>
           </p>
