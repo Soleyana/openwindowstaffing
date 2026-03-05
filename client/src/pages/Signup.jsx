@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { registerUser } from "../api/auth";
+import { preloadCsrfToken } from "../api/axios";
 import { PASSWORD_RULES } from "../config";
 import { getRedirectTarget } from "../lib/authRedirect";
 import AuthLoadingSpinner from "../components/AuthLoadingSpinner";
@@ -16,6 +17,10 @@ export default function Signup() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    preloadCsrfToken();
+  }, []);
 
   useEffect(() => {
     if (!authLoading && user) {

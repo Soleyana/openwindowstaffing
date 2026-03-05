@@ -1,11 +1,16 @@
 import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { resetPassword } from "../api/auth";
+import { preloadCsrfToken } from "../api/axios";
 import { PASSWORD_RULES } from "../config";
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
+
+  useEffect(() => {
+    preloadCsrfToken();
+  }, []);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");

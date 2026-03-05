@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { loginUser } from "../api/auth";
+import { preloadCsrfToken } from "../api/axios";
 import { getJobs } from "../api/jobs";
 import { getRedirectTarget } from "../lib/authRedirect";
 import AuthLoadingSpinner from "../components/AuthLoadingSpinner";
@@ -28,6 +29,7 @@ export default function Login() {
   }, [toast]);
 
   useEffect(() => {
+    preloadCsrfToken();
     getJobs()
       .then(() => setServerReachable(true))
       .catch(() => setServerReachable(false));
