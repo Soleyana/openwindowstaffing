@@ -2122,6 +2122,38 @@
   padding: 2em;
 }
 
+/* Create Offer / Create Assignment modals - ensure readable text & inputs */
+.card[role="dialog"] {
+  background: #fff;
+  color: var(--text-dark);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+}
+
+.card[role="dialog"] .form-row label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-dark);
+}
+
+.card[role="dialog"] .form-row input,
+.card[role="dialog"] .form-row select,
+.card[role="dialog"] .form-row textarea {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text-dark);
+}
+
+.card[role="dialog"] .form-row input::placeholder,
+.card[role="dialog"] .form-row textarea::placeholder {
+  color: var(--text-light);
+}
+
 .read-the-docs {
   color: #888;
 }

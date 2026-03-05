@@ -473,17 +473,17 @@ export default function CandidateDetail() {
                         className="btn-secondary"
                         style={{ padding: "0.25rem 0.5rem", fontSize: "0.85rem", marginRight: 8 }}
                         disabled={downloadingDocId === d._id}
-                        onClick={() => handleDownload(d)}
+                        onClick={(e) => { e.stopPropagation(); handleDownload(d); }}
                       >
                         {downloadingDocId === d._id ? "Downloading…" : "Download"}
                       </button>
                     )}
                     {d.verifiedStatus !== "Verified" && d._id && (
                       <>
-                        <button type="button" className="btn-link" style={{ marginLeft: 8 }} onClick={() => handleVerify(d._id, "Verified")}>
+                        <button type="button" className="btn-secondary" style={{ padding: "0.25rem 0.5rem", fontSize: "0.85rem", marginLeft: 4 }} onClick={(e) => { e.stopPropagation(); handleVerify(d._id, "Verified"); }}>
                           Verify
                         </button>
-                        <button type="button" className="btn-link" style={{ marginLeft: 8 }} onClick={() => handleVerify(d._id, "Rejected")}>
+                        <button type="button" className="btn-secondary" style={{ padding: "0.25rem 0.5rem", fontSize: "0.85rem", marginLeft: 4 }} onClick={(e) => { e.stopPropagation(); handleVerify(d._id, "Rejected"); }}>
                           Reject
                         </button>
                       </>
