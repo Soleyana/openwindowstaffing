@@ -1,17 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { forgotPassword } from "../api/auth";
-import { preloadCsrfToken } from "../api/axios";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    preloadCsrfToken();
-  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

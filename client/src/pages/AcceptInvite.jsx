@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { acceptInvite } from "../api/auth";
-import { preloadCsrfToken } from "../api/axios";
 import { PASSWORD_RULES } from "../config";
 import { verifyInviteToken } from "../api/invites";
 import { ROLES } from "../constants/roles";
@@ -18,10 +17,6 @@ export default function AcceptInvite() {
   const [valid, setValid] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    preloadCsrfToken();
-  }, []);
 
   useEffect(() => {
     if (!token) {

@@ -18,35 +18,10 @@ const api = axios.create({
 const MUTATING_METHODS = ["post", "put", "patch", "delete"];
 let csrfTokenPromise = null;
 
-/**
- * Fetches CSRF token from /api/security/csrf (sets cookie + returns token).
- * Required before any POST/PUT/PATCH/DELETE. Resets cache on failure so mobile can retry.
- */
 async function ensureCsrfToken() {
-  if (csrfTokenPromise) {
-    try {
-      const token = await csrfTokenPromise;
-      if (token) return token;
-    } catch {
-      csrfTokenPromise = null;
-    }
-  }
-  const p = api
-    .get("/security/csrf", { withCredentials: true })
-    .then((r) => r.data?.token || "")
-    .catch((err) => {
-      csrfTokenPromise = null;
-      throw err;
-    });
-  csrfTokenPromise = p;
-  return p;
-}
-
-/**
- * Preload CSRF token (call on login/signup mount so token is ready before first submit).
- */
-export function preloadCsrfToken() {
-  ensureCsrfToken().catch(() => {});
+  if (csrfTokenPromise) return csrfTokenPromise;
+  csrfTokenPromise = api.get("/security/csrf").then((r) => r.data?.token || "");
+  return csrfTokenPromise;
 }
 
 /* FormData: do NOT set Content-Type - browser adds multipart boundary. CSRF token for mutating requests. */
