@@ -109,10 +109,8 @@ app.use(express.json());
 /* CSRF protection for /api state-changing routes (GET/HEAD/OPTIONS bypass) */
 app.use("/api", csrfMiddleware);
 
-/* Health checks – in dev only; in production / serves the SPA */
-if (!isProduction) {
-  app.get("/", (req, res) => res.json({ status: "API running" }));
-}
+/* Health checks */
+app.get("/", (req, res) => res.json({ status: "API running" }));
 app.get("/api/status", (_, res) => res.json({ ok: true, service: "api" }));
 app.get("/api/version", (req, res) => {
   const version =
@@ -215,19 +213,7 @@ app.use("/api/timesheets", timesheetRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/admin", adminRoutes);
 
-/* Production: serve React build from same origin (avoids cross-origin cookies on mobile) */
-if (isProduction) {
-  const distPath = path.join(__dirname, "../client/dist");
-  if (fs.existsSync(distPath)) {
-    app.use(express.static(distPath));
-    app.get("*", (req, res, next) => {
-      if (req.path.startsWith("/api")) return next();
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  }
-}
-
-/* 404 – unknown API routes */
+/* 404 – unknown routes */
 app.use((req, res) => {
   res.status(404).json({ success: false, message: "Route not found" });
 });
