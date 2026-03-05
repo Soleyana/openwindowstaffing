@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { resetPassword } from "../api/auth";
 import { PASSWORD_RULES } from "../config";
 
 export default function ResetPassword() {
-  const [searchParams] = useSearchParams();
+  const { search } = useLocation();
   const navigate = useNavigate();
-  const token = searchParams.get("token");
+  const token = new URLSearchParams(search || "").get("token");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
@@ -14,15 +14,16 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!token) {
-      setError("Invalid reset link. Request a new one from the forgot password page.");
-    }
-  }, [token]);
+    if (success) navigate("/login", { replace: true });
+  }, [success, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    if (!token) return;
+    if (!token || !token.trim()) {
+      setError("Invalid reset link. Request a new one from the forgot password page.");
+      return;
+    }
     if (newPassword !== confirmPassword) {
       setError("Passwords do not match");
       return;
@@ -37,10 +38,10 @@ export default function ResetPassword() {
     }
     setLoading(true);
     try {
-      await resetPassword(token, newPassword);
+      await resetPassword(token.trim(), newPassword);
       setSuccess(true);
     } catch (err) {
-      setError(err.response?.data?.message || err.message || "Failed to reset password");
+      setError(err?.response?.data?.message || err?.message || "Failed to reset password. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -51,27 +52,18 @@ export default function ResetPassword() {
       <div className="auth-page">
         <div className="auth-card">
           <h1 className="auth-title">Password Reset</h1>
-          <nav className="auth-breadcrumbs">
-            <Link to="/">Home</Link>
-            <span> / Reset Password</span>
-          </nav>
-          <p className="auth-invite-notice">
-            Your password has been reset. You can now sign in with your new password.
-          </p>
-          <Link to="/login" className="auth-submit-btn" style={{ display: "inline-block", textAlign: "center", textDecoration: "none" }}>
-            Sign In
-          </Link>
+          <p className="auth-invite-notice">Your password has been reset. Redirecting to sign in…</p>
         </div>
       </div>
     );
   }
 
-  if (!token) {
+  if (!token || !token.trim()) {
     return (
       <div className="auth-page">
         <div className="auth-card">
           <h1 className="auth-title">Invalid Link</h1>
-          <p className="auth-error">{error}</p>
+          <p className="auth-error">{error || "Invalid reset link. Request a new one from the forgot password page."}</p>
           <p className="auth-switch">
             <Link to="/forgot-password">Request a new reset link</Link>
           </p>

@@ -10,6 +10,10 @@
     <title>Open Window Staffing</title>
   </head>
   <body>
+    <!-- Injected at build: window.__VITE_API_URL__ from VITE_API_URL env (required for prod) -->
+    <script>
+      window.__VITE_API_URL__ = (typeof __VITE_API_URL_INJECT__ !== "undefined") ? __VITE_API_URL_INJECT__ : "";
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
