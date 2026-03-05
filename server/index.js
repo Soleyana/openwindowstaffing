@@ -227,14 +227,8 @@ if (isProduction) {
   }
 }
 
-/* 404 – unknown routes. Only return JSON for /api; SPA fallback for non-API in production. */
+/* 404 – unknown API routes */
 app.use((req, res) => {
-  if (isProduction && !req.path.startsWith("/api")) {
-    const distPath = path.join(__dirname, "../client/dist");
-    if (fs.existsSync(distPath)) {
-      return res.sendFile(path.join(distPath, "index.html"));
-    }
-  }
   res.status(404).json({ success: false, message: "Route not found" });
 });
 
