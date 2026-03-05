@@ -93,8 +93,8 @@ function AppContent() {
             <Route path="/apply/:jobId" element={<ApplyJob />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
-            <Route path="/forgot-password" element={<ErrorBoundary fallbackLabel="Forgot Password"><ForgotPassword /></ErrorBoundary>} />
-            <Route path="/reset-password" element={<ErrorBoundary fallbackLabel="Reset Password"><ResetPassword /></ErrorBoundary>} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/invite/:token" element={<AcceptInvite />} />
             <Route path="/about" element={<About />} />
             <Route path="/faq" element={<FAQ />} />
